@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Waddle War</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050d1a; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+    canvas { display: block; }
+
+    /* Lobby overlay */
+    #lobby {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #050d1a 0%, #0a1f3a 100%);
+      z-index: 100;
+    }
+    #lobby-card {
+      background: rgba(10,30,60,0.9);
+      border: 1px solid #1a4a8a;
+      border-radius: 16px;
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+    }
+    #lobby h1 {
+      font-size: 3rem;
+      letter-spacing: 0.15em;
+      color: #a8e6f0;
+      text-transform: uppercase;
+      text-shadow: 0 0 20px #4af0ff88;
+      margin-bottom: 8px;
+    }
+    #lobby .subtitle {
+      color: #5a8aaa;
+      font-size: 0.95rem;
+      margin-bottom: 32px;
+      letter-spacing: 0.05em;
+    }
+    #username-input {
+      width: 100%;
+      padding: 14px 18px;
+      font-size: 1.1rem;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid #2a5a8a;
+      border-radius: 8px;
+      color: #e0f4ff;
+      outline: none;
+      text-align: center;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    #username-input:focus { border-color: #4af0ff; }
+    #username-error {
+      color: #ff6666;
+      font-size: 0.8rem;
+      height: 18px;
+      margin-bottom: 16px;
+    }
+    #join-btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #1a6a9a, #0a4a7a);
+      border: 1px solid #4af0ff55;
+      border-radius: 8px;
+      color: #a8e6f0;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    #join-btn:hover {
+      background: linear-gradient(135deg, #2a8aca, #1a6aaa);
+      box-shadow: 0 0 20px #4af0ff44;
+    }
+
+    /* HUD shell — contents injected by HUD.js */
+    #hud {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Lobby -->
+  <div id="lobby">
+    <div id="lobby-card">
+      <h1>Waddle War</h1>
+      <p class="subtitle">Penguin battle royale on the ice planet</p>
+      <input id="username-input" type="text" maxlength="16" placeholder="Enter username..." autocomplete="off" />
+      <div id="username-error"></div>
+      <button id="join-btn">ENTER THE ICE</button>
+    </div>
+  </div>
+
+  <!-- HUD — contents injected by HUD.js -->
+  <div id="hud"></div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

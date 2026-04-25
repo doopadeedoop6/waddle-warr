@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: waddle-war-server
+    env: node
+    buildCommand: npm install --prefix server
+    startCommand: node server/index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MAP_ID
+        value: glacier_canyon
+      - key: CORS_ORIGIN
+        sync: false
