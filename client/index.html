@@ -9,7 +9,7 @@
     body { background: #050d1a; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
     canvas { display: block; }
 
-    /* Lobby overlay */
+    /* ── Lobby overlay ───────────────────────────────────────────────────── */
     #lobby {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
@@ -17,15 +17,17 @@
       z-index: 100;
     }
     #lobby-card {
-      background: rgba(10,30,60,0.9);
+      background: rgba(10,30,60,0.92);
       border: 1px solid #1a4a8a;
       border-radius: 16px;
-      padding: 48px 56px;
+      padding: 40px 48px;
       text-align: center;
-      max-width: 420px;
-      width: 90%;
+      max-width: 460px;
+      width: 92%;
     }
-    #lobby h1 {
+
+    /* ── Phase 1 ─────────────────────────────────────────────────────────── */
+    #lobby-phase1 h1 {
       font-size: 3rem;
       letter-spacing: 0.15em;
       color: #a8e6f0;
@@ -33,7 +35,7 @@
       text-shadow: 0 0 20px #4af0ff88;
       margin-bottom: 8px;
     }
-    #lobby .subtitle {
+    #lobby-phase1 .subtitle {
       color: #5a8aaa;
       font-size: 0.95rem;
       margin-bottom: 32px;
@@ -79,7 +81,199 @@
       box-shadow: 0 0 20px #4af0ff44;
     }
 
-    /* HUD shell — contents injected by HUD.js */
+    /* ── Phase 2 ─────────────────────────────────────────────────────────── */
+    #lobby-phase2 { display: none; }
+
+    .p2-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 6px;
+    }
+    .p2-header h1 {
+      font-size: 2.4rem;
+      letter-spacing: 0.15em;
+      color: #a8e6f0;
+      text-transform: uppercase;
+      text-shadow: 0 0 16px #4af0ff88;
+    }
+    .mode-badge {
+      background: linear-gradient(135deg, #0a4a7a, #0d5e9a);
+      border: 1px solid #4af0ff66;
+      border-radius: 5px;
+      color: #4af0ff;
+      font-size: 0.7rem;
+      font-weight: bold;
+      letter-spacing: 0.14em;
+      padding: 4px 9px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      /* forward-compat slot for TDM badge swap */
+    }
+
+    /* Room code */
+    .room-code-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 10px;
+      margin: 14px 0 20px;
+    }
+    .room-code-label {
+      color: #4a7a9a;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    #room-code {
+      font-family: 'Courier New', monospace;
+      font-size: 1.55rem;
+      font-weight: bold;
+      letter-spacing: 0.22em;
+      color: #a8e6f0;
+      text-shadow: 0 0 10px #4af0ff66;
+      cursor: pointer;
+      user-select: all;
+      title: "Click to copy";
+    }
+    #room-code:hover { color: #4af0ff; }
+    #room-code-copied {
+      font-size: 0.7rem;
+      color: #44ff88;
+      letter-spacing: 0.08em;
+      height: 14px;
+      margin-bottom: 4px;
+    }
+
+    /* Map buttons */
+    .map-section-label {
+      color: #4a7a9a;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .map-btns {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .map-btn {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #2a5a8a;
+      border-radius: 8px;
+      color: #7aaecc;
+      cursor: pointer;
+      transition: all 0.18s;
+      text-transform: uppercase;
+    }
+    .map-btn:hover {
+      background: rgba(74,240,255,0.08);
+      border-color: #4af0ff66;
+      color: #a8e6f0;
+    }
+    .map-btn.active {
+      background: linear-gradient(135deg, #0a4a7a, #0d5e9a);
+      border-color: #4af0ff;
+      color: #4af0ff;
+      box-shadow: 0 0 12px #4af0ff33;
+    }
+
+    /* Player list */
+    .player-list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .player-list-header span:first-child {
+      color: #4a7a9a;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    #player-count {
+      color: #a8e6f0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+    #player-list {
+      max-height: 168px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #1a4a8a transparent;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid #1a3a6a;
+      border-radius: 8px;
+      padding: 6px 4px;
+      margin-bottom: 18px;
+    }
+    #player-list::-webkit-scrollbar { width: 4px; }
+    #player-list::-webkit-scrollbar-thumb { background: #1a4a8a; border-radius: 2px; }
+    .player-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 8px;
+      border-radius: 5px;
+    }
+    .player-item:hover { background: rgba(255,255,255,0.04); }
+    .player-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 5px currentColor;
+    }
+    .player-name {
+      font-size: 0.88rem;
+      color: #c0dff0;
+      letter-spacing: 0.04em;
+    }
+    .player-list-empty {
+      color: #3a6a8a;
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      padding: 12px 0;
+    }
+
+    /* Waiting / solo */
+    .lobby-waiting {
+      color: #3a6a8a;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      min-height: 18px;
+    }
+    #solo-btn {
+      display: none;
+      width: 100%;
+      padding: 11px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #4a7aaa55;
+      border-radius: 8px;
+      color: #7aaecc;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+    #solo-btn:hover {
+      background: rgba(74,240,255,0.07);
+      border-color: #4af0ff55;
+      color: #a8e6f0;
+    }
+
+    /* ── HUD shell — contents injected by HUD.js ──────────────────────────── */
     #hud {
       position: fixed; inset: 0;
       pointer-events: none;
@@ -88,14 +282,53 @@
   </style>
 </head>
 <body>
+
   <!-- Lobby -->
   <div id="lobby">
     <div id="lobby-card">
-      <h1>Waddle War</h1>
-      <p class="subtitle">Penguin battle royale on the ice planet</p>
-      <input id="username-input" type="text" maxlength="16" placeholder="Enter username..." autocomplete="off" />
-      <div id="username-error"></div>
-      <button id="join-btn">ENTER THE ICE</button>
+
+      <!-- Phase 1: username entry -->
+      <div id="lobby-phase1">
+        <h1>Waddle War</h1>
+        <p class="subtitle">Penguin battle royale on the ice planet</p>
+        <input id="username-input" type="text" maxlength="16"
+               placeholder="Enter username..." autocomplete="off" />
+        <div id="username-error"></div>
+        <button id="join-btn">ENTER THE ICE</button>
+      </div>
+
+      <!-- Phase 2: waiting room -->
+      <div id="lobby-phase2">
+
+        <div class="p2-header">
+          <h1>Waddle War</h1>
+          <span class="mode-badge" data-mode="FFA">FFA</span>
+        </div>
+
+        <div class="room-code-row">
+          <span class="room-code-label">Room</span>
+          <span id="room-code" title="Click to copy">------</span>
+        </div>
+        <div id="room-code-copied"></div>
+
+        <p class="map-section-label">Map</p>
+        <div class="map-btns">
+          <button class="map-btn" data-map="ice_planet">Ice Planet</button>
+          <button class="map-btn" data-map="glacier_canyon">Glacier Canyon</button>
+        </div>
+
+        <div class="player-list-header">
+          <span>Players</span>
+          <span id="player-count">0 / 16</span>
+        </div>
+        <div id="player-list">
+          <div class="player-list-empty">Connecting...</div>
+        </div>
+
+        <p class="lobby-waiting">Waiting for players&hellip;</p>
+        <button id="solo-btn">PLAY SOLO</button>
+
+      </div>
     </div>
   </div>
 
@@ -103,5 +336,18 @@
   <div id="hud"></div>
 
   <script type="module" src="/main.js"></script>
+
+  <script>
+    // Click-to-copy room code
+    document.getElementById('room-code').addEventListener('click', function() {
+      const code = this.textContent;
+      if (code === '------') return;
+      navigator.clipboard?.writeText(code).then(() => {
+        const el = document.getElementById('room-code-copied');
+        el.textContent = 'Copied!';
+        setTimeout(() => { el.textContent = ''; }, 1500);
+      });
+    });
+  </script>
 </body>
 </html>

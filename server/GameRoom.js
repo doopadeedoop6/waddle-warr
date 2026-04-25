@@ -31,7 +31,8 @@ export class GameRoom {
     this._currentMapId = this._validateMapId(mapId);
     this._mapLoader    = new MapLoader(this._currentMapId);
     this._physics      = new PhysicsWorld(this._mapLoader);
-    console.log(`[GameRoom] map: ${this._currentMapId}`);
+    this._roomCode     = Math.random().toString(36).slice(2, 8).toUpperCase();
+    console.log(`[GameRoom] map: ${this._currentMapId} code: ${this._roomCode}`);
   }
 
   // ───────────────────────────────────────────── public API ──
@@ -83,7 +84,7 @@ export class GameRoom {
     socket.join(this._roomId);
 
     this._physics.addPlayer(socket.id, spawnPosition);
-    socket.emit('joined', { playerId: socket.id, color, spawnPosition, mapId: this._currentMapId });
+    socket.emit('joined', { playerId: socket.id, color, spawnPosition, mapId: this._currentMapId, roomCode: this._roomCode });
     console.log(`[GameRoom] ${username} joined (${this._players.size} players)`);
 
     this._broadcastPlayerList();

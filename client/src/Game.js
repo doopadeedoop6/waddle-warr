@@ -13,10 +13,11 @@ import RemotePlayer from './RemotePlayer.js';
 import { audio } from './AudioManager.js';
 
 export class Game {
-  constructor(username) {
-    this.username  = username;
-    this.clock     = new THREE.Clock();
-    this._inputSeq = 0;
+  constructor(username, preNetwork = null) {
+    this.username    = username;
+    this.clock       = new THREE.Clock();
+    this._inputSeq   = 0;
+    this._preNetwork = preNetwork;
   }
 
   async start() {
@@ -27,22 +28,27 @@ export class Game {
     this.hud = new HUD();
     this.hud.show();
 
-    // ── Connect to server — timeout 3s so offline mode still works ──
-    this.network = new Network();
+    // ── Connect to server (or reuse lobby pre-connection) ──
     let joinData = null;
-    try {
-      joinData = await Promise.race([
-        this.network.connect(this.username),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-      ]);
-    } catch (err) {
-      console.warn('[Game] server offline, running solo:', err.message);
+    if (this._preNetwork) {
+      this.network = this._preNetwork;
+      joinData = this._preNetwork.joinData;
+    } else {
+      this.network = new Network();
+      try {
+        joinData = await Promise.race([
+          this.network.connect(this.username),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]);
+      } catch (err) {
+        console.warn('[Game] server offline, running solo:', err.message);
+      }
     }
 
     // ── Determine which map to load ──
-    // Priority: 1) URL ?map= param (visual testing), 2) server join payload, 3) default
+    // Priority: 1) URL ?map= param (visual testing), 2) server current map (post-lobby changes), 3) default
     const urlMapId    = new URLSearchParams(window.location.search).get('map');
-    const serverMapId = joinData?.mapId ?? null;
+    const serverMapId = this.network.currentMapId ?? joinData?.mapId ?? null;
     const resolvedMapId = this._resolveMapId(urlMapId ?? serverMapId ?? DEFAULT_MAP_ID);
     if (urlMapId && urlMapId !== serverMapId) {
       console.log(`[Game] URL map "${urlMapId}" differs from server map "${serverMapId}" — requesting server switch`);

@@ -15,6 +15,10 @@ export default class Network {
     this._latency      = NaN;
     this._serverPos    = null;   // position correction target from last gameState
 
+    // Lobby-phase state
+    this._joinData         = null;
+    this._lobbyPlayers     = [];
+
     this._onJoinedCb         = null;
     this._onGameStateCb      = null;
     this._onPlayerDiedCb     = null;
@@ -22,6 +26,9 @@ export default class Network {
     this._onMeleeConfirmedCb = null;
     this._onRespawnCb        = null;
     this._onProjectileCb     = null;
+    this._onPlayerListCb     = null;
+    this._onMapChangedCb     = null;
+    this._onGameStartedCb    = null;
 
     // id → remote player object  (live; Weapon reads this array)
     this._remoteMap     = new Map();
@@ -47,9 +54,24 @@ export default class Network {
       this._socket.once('joined', (data) => {
         this._playerId     = data.playerId;
         this._currentMapId = data.mapId ?? null;
+        this._joinData     = data;
         console.log('[Network] joined, playerId =', data.playerId, 'map =', this._currentMapId);
         resolve(data);
         if (this._onJoinedCb) this._onJoinedCb(data);
+      });
+
+      this._socket.on('playerList', ({ players }) => {
+        this._lobbyPlayers = players;
+        if (this._onPlayerListCb) this._onPlayerListCb(players);
+      });
+
+      this._socket.on('mapChanged', ({ mapId }) => {
+        this._currentMapId = mapId;
+        if (this._onMapChangedCb) this._onMapChangedCb(mapId);
+      });
+
+      this._socket.on('gameStarted', () => {
+        if (this._onGameStartedCb) this._onGameStartedCb();
       });
 
       this._socket.on('gameState', (state) => {
@@ -245,6 +267,9 @@ export default class Network {
   onMeleeConfirmed(cb) { this._onMeleeConfirmedCb = cb; }
   onRespawn(cb)        { this._onRespawnCb        = cb; }
   onProjectile(cb)     { this._onProjectileCb     = cb; }
+  onPlayerList(cb)     { this._onPlayerListCb     = cb; }
+  onMapChanged(cb)     { this._onMapChangedCb     = cb; }
+  onGameStarted(cb)    { this._onGameStartedCb    = cb; }
 
   sendProjectile(data) {
     if (!this._socket?.connected) return;
@@ -261,4 +286,7 @@ export default class Network {
   get playerId()      { return this._playerId; }
   get remotePlayers() { return this._remotePlayers; }
   get currentMapId()  { return this._currentMapId; }
+  get joinData()      { return this._joinData; }
+  get lobbyPlayers()  { return this._lobbyPlayers; }
+  get roomCode()      { return this._joinData?.roomCode ?? null; }
 }
