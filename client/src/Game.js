@@ -306,6 +306,7 @@ export class Game {
       const remotes = this.network.remotePlayers;
 
       for (const rp of remotes) {
+        if (rp.id === this.network.playerId) continue;
         if (!this._remoteMeshes.has(rp.id)) {
           const rm = new RemotePlayer(this.scene, {
             id: rp.id, username: rp.username, color: rp.color,

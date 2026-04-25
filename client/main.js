@@ -16,16 +16,18 @@ document.addEventListener('click',   startLobbyMusic);
 document.addEventListener('keydown', startLobbyMusic);
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const lobby         = document.getElementById('lobby');
-const phase1        = document.getElementById('lobby-phase1');
-const phase2        = document.getElementById('lobby-phase2');
-const usernameInput = document.getElementById('username-input');
-const joinBtn       = document.getElementById('join-btn');
-const usernameError = document.getElementById('username-error');
-const roomCodeEl    = document.getElementById('room-code');
-const playerListEl  = document.getElementById('player-list');
-const playerCountEl = document.getElementById('player-count');
-const soloBtn       = document.getElementById('solo-btn');
+const lobby           = document.getElementById('lobby');
+const phase1          = document.getElementById('lobby-phase1');
+const phase2          = document.getElementById('lobby-phase2');
+const usernameInput   = document.getElementById('username-input');
+const joinBtn         = document.getElementById('join-btn');
+const usernameError   = document.getElementById('username-error');
+const roomCodeEl      = document.getElementById('room-code');
+const playerListEl    = document.getElementById('player-list');
+const playerCountEl   = document.getElementById('player-count');
+const startBtn        = document.getElementById('start-btn');
+const soloBtn         = document.getElementById('solo-btn');
+const lobbyWaitingTxt = document.getElementById('lobby-waiting-text');
 
 // ── Phase 1: username entry ──────────────────────────────────────────────────
 joinBtn.addEventListener('click', enterLobby);
@@ -76,6 +78,10 @@ async function enterLobby() {
     if (!_gameLaunched) soloBtn.style.display = 'block';
   }, 6000);
 
+  startBtn.addEventListener('click', () => {
+    if (_network) _network.requestStartGame();
+  });
+
   soloBtn.addEventListener('click', () => launchGame(null));
 
   // ── Connect to server ──────────────────────────────────────────────────────
@@ -109,6 +115,14 @@ function renderPlayerList(players) {
       <span class="player-name">${escHtml(p.username)}</span>
     </div>
   `).join('');
+
+  if (players.length >= 2 && !_gameLaunched) {
+    startBtn.style.display = 'block';
+    lobbyWaitingTxt.style.display = 'none';
+  } else {
+    startBtn.style.display = 'none';
+    lobbyWaitingTxt.style.display = 'block';
+  }
 }
 
 function highlightMapBtn(mapId) {

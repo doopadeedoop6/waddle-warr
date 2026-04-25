@@ -320,6 +320,7 @@ export class Player {
 
     this._grounded            = false;
     this._groundedByCollision = false;
+    this._groundedCoyoteFrames = 0;
     this._floorNormal = new THREE.Vector3(0, 1, 0); // actual surface normal updated each collision
     this._spaceWasHeld = false;
     this._yaw        = 0;
@@ -397,7 +398,7 @@ export class Player {
   _buildPhysics() {
     const shape = new CANNON.Sphere(0.9);
     this.body = new CANNON.Body({ mass: 1, shape,
-      linearDamping: 0.85,
+      linearDamping: 0.4,
       angularDamping: 1.0,
       collisionFilterGroup: 2,
       collisionFilterMask:  -1,
@@ -415,8 +416,9 @@ export class Player {
     this.body.addEventListener('collide', (e) => {
       const contact = e.contact;
       const cv = contact.bi === this.body ? contact.ri : contact.rj;
-      if (cv.y < -0.3) {
+      if (cv.y < -0.15) {
         this._groundedByCollision = true;
+        this._groundedCoyoteFrames = 4;
         // Store the actual surface normal (-cv/|cv|) so slope movement uses the right axis
         const len = Math.sqrt(cv.x * cv.x + cv.y * cv.y + cv.z * cv.z);
         if (len > 0.001) this._floorNormal.set(-cv.x / len, -cv.y / len, -cv.z / len);
@@ -461,9 +463,14 @@ export class Player {
 
     const gravity = this.map.gravity;
     this.body.applyForce(new CANNON.Vec3(gravity.x, gravity.y, gravity.z), new CANNON.Vec3(0, 0, 0));
-    // Height check covers flat ground; collision flag covers elevated platforms/ramps/bridges.
-    this._grounded = threePos.y < groundY + 1.6 || this._groundedByCollision;
-    this._groundedByCollision = false; // reset — collision events will set it again next step
+    // Collision-based grounding with 4-frame coyote window — works on any surface shape.
+    if (this._groundedByCollision) {
+      this._groundedCoyoteFrames = 4;
+      this._groundedByCollision  = false;
+    } else if (this._groundedCoyoteFrames > 0) {
+      this._groundedCoyoteFrames--;
+    }
+    this._grounded = this._groundedCoyoteFrames > 0;
 
     if (this._grounded) {
       this._canAirDash = true;
@@ -526,6 +533,18 @@ export class Player {
       }
     } else if (this._grounded && !this.isFallen) {
       this.slideFuel = Math.min(MAX_SLIDE_FUEL, this.slideFuel + delta * (MAX_SLIDE_FUEL / SLIDE_RECHARGE));
+    }
+
+    // On any slope: cancel gravity's tangential component when standing still.
+    // This is static friction — prevents sliding on ramps, hills, and curved surfaces.
+    if (this._grounded && moveDir.lengthSq() === 0 && !boosting && !this.isFallen) {
+      const grav       = new THREE.Vector3(gravity.x, gravity.y, gravity.z);
+      const gravAlongN = floorUp.clone().multiplyScalar(grav.dot(floorUp));
+      const gravTang   = grav.clone().sub(gravAlongN);
+      this.body.applyForce(
+        new CANNON.Vec3(-gravTang.x, -gravTang.y, -gravTang.z),
+        new CANNON.Vec3(0, 0, 0)
+      );
     }
 
     if (moveDir.lengthSq() > 0) {

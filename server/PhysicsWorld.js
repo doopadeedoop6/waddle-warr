@@ -7,7 +7,7 @@ const TICK_RATE = 1 / 50;
 // linearDamping ของ cannon-es ทำงานเป็น exponential decay ต่อวินาที
 // 0.88^60 ≈ 0.00055  →  damping ต่อวินาที ≈ 1 - 0.88^60 ≈ 0.9994
 // ใช้ 0.85 เป็นค่า server damping (conservative — client apply เพิ่มอีกชั้น)
-const SERVER_LINEAR_DAMPING = 0.85;
+const SERVER_LINEAR_DAMPING = 0.4;
 
 export class PhysicsWorld {
   constructor(mapLoader) {
@@ -20,15 +20,29 @@ export class PhysicsWorld {
       allowSleep: false,
     });
 
+    this._playerMaterial = new CANNON.Material('player');
+    this._groundMaterial = new CANNON.Material('ground');
+    const contactMat = new CANNON.ContactMaterial(
+      this._playerMaterial,
+      this._groundMaterial,
+      { friction: 0.3, restitution: 0.0 }
+    );
+    this._world.addContactMaterial(contactMat);
+    this._world.defaultContactMaterial.friction    = 0.3;
+    this._world.defaultContactMaterial.restitution = 0.0;
+
     // Ground plane (normal +Y)
     const ground = new CANNON.Body({ mass: 0 });
     ground.addShape(new CANNON.Plane());
     ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     ground.position.set(0, mapLoader.groundY, 0);
+    ground.material            = this._groundMaterial;
+    ground.collisionFilterGroup = 1;
+    ground.collisionFilterMask  = -1;
     this._world.addBody(ground);
 
     // Obstacle physics bodies from map config
-    this._obstacleBodies = mapLoader.buildObstacleBodies(this._world);
+    this._obstacleBodies = mapLoader.buildObstacleBodies(this._world, this._groundMaterial);
 
     this._playerBodies = new Map(); // id → CANNON.Body
   }
@@ -37,11 +51,11 @@ export class PhysicsWorld {
     const body = new CANNON.Body({
       mass: 1,
       shape: new CANNON.Sphere(0.9),
-      // ✅ Fix: เพิ่ม linearDamping ให้ตรงกับ client — ไม่งั้น server ไม่มี friction เลย
       linearDamping: SERVER_LINEAR_DAMPING,
       angularDamping: 1.0,
       collisionFilterGroup: 2,
       collisionFilterMask: -1,
+      material: this._playerMaterial,
     });
     body.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
     this._playerBodies.set(id, body);
@@ -119,8 +133,8 @@ export class PhysicsWorld {
    * ยิง ray จากเหนือหัวลงมา — ตรวจเจอ ramp/platform ที่ความสูงจริง ไม่ใช่แค่พื้นเหว
    */
   _getSupportY(px, py, pz) {
-    const start  = new CANNON.Vec3(px, py + 10.0, pz);
-    const end    = new CANNON.Vec3(px, this._mapLoader.groundY, pz);
+    const start  = new CANNON.Vec3(px, py + 50.0, pz);
+    const end    = new CANNON.Vec3(px, this._mapLoader.groundY - 1, pz);
     const result = new CANNON.RaycastResult();
     this._world.raycastClosest(start, end, { collisionFilterMask: 1 }, result);
     return result.hasHit ? result.hitPointWorld.y : this._mapLoader.groundY;

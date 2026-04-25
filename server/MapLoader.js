@@ -16,7 +16,7 @@ export class MapLoader {
 
   // Build CANNON bodies for all obstacles; adds them to world and returns array
   // ✅ Fix: return bodies array so PhysicsWorld._getSupportY() can query them
-  buildObstacleBodies(world) {
+  buildObstacleBodies(world, groundMaterial = null) {
     const bodies = [];
     for (const obs of this.obstacles) {
       let shape;
@@ -30,8 +30,14 @@ export class MapLoader {
       } else {
         continue;
       }
-      const body = new CANNON.Body({ mass: 0, shape });
+      const body = new CANNON.Body({
+        mass: 0,
+        shape,
+        collisionFilterGroup: 1,
+        collisionFilterMask: -1,
+      });
       body.position.set(...obs.pos);
+      if (groundMaterial) body.material = groundMaterial;
       if (obs.rotation) body.quaternion.setFromEuler(...obs.rotation);
       world.addBody(body);
       bodies.push(body);

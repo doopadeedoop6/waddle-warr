@@ -29,6 +29,7 @@ export default class Network {
     this._onPlayerListCb     = null;
     this._onMapChangedCb     = null;
     this._onGameStartedCb    = null;
+    this._onRoomSnapshotCb   = null;
 
     // id → remote player object  (live; Weapon reads this array)
     this._remoteMap     = new Map();
@@ -72,6 +73,27 @@ export default class Network {
 
       this._socket.on('gameStarted', () => {
         if (this._onGameStartedCb) this._onGameStartedCb();
+      });
+
+      this._socket.on('roomSnapshot', (players) => {
+        for (const p of players) {
+          if (this._remoteMap.has(p.id)) continue;
+          this._remoteMap.set(p.id, {
+            id:           p.id,
+            username:     p.username,
+            color:        p.color,
+            position:     new THREE.Vector3(p.position.x, p.position.y, p.position.z),
+            quaternion:   new THREE.Quaternion(),
+            hp:           p.hp,
+            alive:        p.alive,
+            charging:     false,
+            chargeAmount: 0,
+            body:         null,
+            _buffer:      [],
+          });
+        }
+        this._remotePlayers = [...this._remoteMap.values()];
+        if (this._onRoomSnapshotCb) this._onRoomSnapshotCb(this._remotePlayers);
       });
 
       this._socket.on('gameState', (state) => {
@@ -270,6 +292,7 @@ export default class Network {
   onPlayerList(cb)     { this._onPlayerListCb     = cb; }
   onMapChanged(cb)     { this._onMapChangedCb     = cb; }
   onGameStarted(cb)    { this._onGameStartedCb    = cb; }
+  onRoomSnapshot(cb)   { this._onRoomSnapshotCb   = cb; }
 
   sendProjectile(data) {
     if (!this._socket?.connected) return;
@@ -279,6 +302,11 @@ export default class Network {
   requestMapChange(mapId) {
     if (!this._socket?.connected) return;
     this._socket.emit('requestMapChange', { mapId });
+  }
+
+  requestStartGame() {
+    if (!this._socket?.connected) return;
+    this._socket.emit('startGame');
   }
 
   // ─────────────────────────────────────── getters ──

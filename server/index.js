@@ -19,7 +19,8 @@ const gameRoom = new GameRoom(io, startMapId);
 io.on('connection', (socket) => {
   console.log(`+ connected: ${socket.id}`);
 
-  socket.on('join',            (data) => gameRoom.handleJoin(socket, data));
+  socket.once('join',          (data) => gameRoom.handleJoin(socket, data));
+  socket.on('startGame',       ()     => gameRoom.handleStartGame(socket));
   socket.on('input',           (data) => gameRoom.handleInput(socket, data));
   socket.on('hit',             (data) => gameRoom.handleHit(socket, data));
   socket.on('meleeHit',        (data) => gameRoom.handleMeleeHit(socket, data));

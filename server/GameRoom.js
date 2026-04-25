@@ -68,6 +68,10 @@ export class GameRoom {
   // ───────────────────────────────────────────── join ──
 
   handleJoin(socket, { username }) {
+    if (this._players.has(socket.id)) {
+      console.warn(`[GameRoom] duplicate join ignored: ${socket.id}`);
+      return;
+    }
     if (this._players.size >= MAX_PLAYERS) {
       socket.emit('error', { message: 'Room full' });
       return;
@@ -89,9 +93,36 @@ export class GameRoom {
 
     this._broadcastPlayerList();
 
-    if (this._players.size >= 2 && this._state === 'WAITING') {
-      this._startGame();
+    // If game already running, tell this late joiner to start immediately
+    if (this._state === 'PLAYING') {
+      socket.emit('gameStarted', {});
+
+      const snapshot = [...this._players.values()]
+        .filter(p => p.id !== socket.id)
+        .map(p => ({
+          id:       p.id,
+          username: p.username,
+          color:    p.color,
+          position: p.position,
+          hp:       p.hp,
+          alive:    p.alive,
+        }));
+      socket.emit('roomSnapshot', snapshot);
     }
+  }
+
+  // ───────────────────────────────────────────── startGame ──
+
+  handleStartGame(socket) {
+    if (this._state !== 'WAITING') {
+      socket.emit('startGameResult', { ok: false, reason: 'Game already started' });
+      return;
+    }
+    if (this._players.size < 2) {
+      socket.emit('startGameResult', { ok: false, reason: 'Need at least 2 players' });
+      return;
+    }
+    this._startGame();
   }
 
   // ───────────────────────────────────────────── input ──

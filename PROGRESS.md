@@ -1,6 +1,6 @@
 # Waddle Wars — Build Progress
 
-Last updated: 2026-04-24 (Bug fix — glacier_canyon_v2 physics/client mismatch)
+Last updated: 2026-04-25 (Bug pass — lobby auto-start, map buttons, duplicate mesh, solo fallback)
 
 ---
 
@@ -8,6 +8,7 @@ Last updated: 2026-04-24 (Bug fix — glacier_canyon_v2 physics/client mismatch)
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
+| 18 | Lobby Bug Pass | ✅ Done | 4 lobby bugs fixed: manual start, map buttons, duplicate mesh, solo fallback |
 | 17 | Bug Pass + 16-player Map | ✅ Done | 9 bugs fixed; Glacier Canyon rebuilt for 16 players (400×400) |
 | 1 | Setup | ✅ Done | Vite, index.html, main.js, server skeleton |
 | 2 | Planet | ✅ Done | Flat ice arena (IcePlanet.js) |
@@ -270,6 +271,10 @@ waddle-war/
 
 | Bug | Root cause | Fix |
 |-----|-----------|-----|
+| Game auto-starts at 2 players | `handleJoin` called `_startGame()` at count ≥ 2 | Removed auto-start; added `handleStartGame()` + `startGame` socket event + green "START GAME" button in lobby (shows when ≥ 2 players) |
+| Map buttons do nothing | `setMap()` silently rejected while state `PLAYING` (caused by above) | Fixed by removing auto-start; map buttons now work in `WAITING` state |
+| Duplicate player mesh | Race condition: `gameState` arrived before `joined`, setting `_playerId` null → local player added to `_remoteMap` | Added `if (rp.id === this.network.playerId) continue` guard in `Game._animate()` mesh-creation loop |
+| Second player sees "Play Solo" | Late joiner to a `PLAYING` room never received `gameStarted` → solo timer fired | `handleJoin` now emits `gameStarted` to the socket if `_state === 'PLAYING'` |
 | Normal-throw snowball invisible | Duplicate method defs in Weapon.js | Removed dead first copies |
 | shapes array accumulates | `body.shapes = []` left offsets/orientations stale | `.length = 0` on all three arrays |
 | Dark screen after flat map | Camera lookat pointed at sky; dim lights | Lookat toward aimDir×20; boosted lights + fog |
@@ -299,22 +304,49 @@ waddle-war/
 
 ---
 
+---
+
+### ✅ Phase 18 — Lobby Bug Pass
+
+Four bugs introduced after the lobby was added, fixed 2026-04-25.
+
+#### Bugs fixed
+
+| # | Bug | File(s) | Fix |
+|---|-----|---------|-----|
+| 1 | Game auto-started when 2 players joined | `GameRoom.js` | Removed `_startGame()` call from `handleJoin()`; added `handleStartGame(socket)` gated on `WAITING` + count ≥ 2 |
+| 2 | Map selection buttons did nothing | `GameRoom.js` (root cause: bug 1) | Fixed by bug 1 — `setMap()` was rejecting all requests because state was already `PLAYING` |
+| 3 | Duplicate player mesh for local player | `Game.js` | Added `if (rp.id === this.network.playerId) continue` in remote-mesh creation loop to guard against race condition where `gameState` arrives before `joined` |
+| 4 | Second player saw "Play Solo" instead of joining | `GameRoom.js` | `handleJoin` now emits `gameStarted` to the new socket when `_state === 'PLAYING'`, so late joiners get the same signal as on-time ones |
+
+#### New socket event: `startGame`
+
+- **Client** (`Network.requestStartGame()`) → emits `startGame`
+- **Server** (`index.js`) → `socket.on('startGame', () => gameRoom.handleStartGame(socket))`
+- **Server** (`GameRoom.handleStartGame`) → validates WAITING + ≥ 2 players, then calls `_startGame()`
+
+#### Lobby UI change
+
+- Green **"START GAME"** button added to phase-2 lobby (above "PLAY SOLO")
+- Shown automatically when `playerList` reaches ≥ 2 players; hidden otherwise
+- "Waiting for players…" text swaps out when button appears
+- Styled to match arctic dark-blue theme (green accent to distinguish from map/solo buttons)
+
+---
+
 ## Next Recommended Steps
 
-**Option A — Phase 11 remaining (quick wins)**
-Snow patches (instanced cylinders) + idle sway animation. ~1 session.
-
-**Option B — Phase 14 (Deploy)**
+**Option A — Phase 14 (Deploy)**
 Netlify + Render config files. Gets the game online for others to play.
 
-**Option C — Phase 12 (Lobby Polish)**
-Snowflake animation, player list with color dots, room code display.
+**Option B — Phase 12 remaining (Lobby Polish)**
+Snowflake CSS animation, room code copy toast, host-only Start Game restriction.
 
-**Option D — Map Selection UI (Phase 17)**
-Lobby UI to pick Ice Planet vs Glacier Canyon before joining. ~1 session.
+**Option C — Phase 11 remaining (quick wins)**
+Snow patches (instanced cylinders) + idle sway animation. ~1 session.
 
-**Option E — Phase 11 remaining (quick wins)**
-Snow patches + idle sway animation.
+**Option D — Phase 13 (Performance + Mobile)**
+InstancedMesh for rocks, FPS counter on `?debug=1`, nipplejs virtual joysticks.
 
 ---
 

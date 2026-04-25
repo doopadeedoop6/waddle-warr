@@ -252,6 +252,27 @@
       margin-bottom: 12px;
       min-height: 18px;
     }
+    #start-btn {
+      display: none;
+      width: 100%;
+      padding: 14px;
+      font-size: 1.05rem;
+      font-weight: bold;
+      letter-spacing: 0.14em;
+      background: linear-gradient(135deg, #0e6e2e, #0a5224);
+      border: 1px solid #44ff8866;
+      border-radius: 8px;
+      color: #88ffbb;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+    #start-btn:hover {
+      background: linear-gradient(135deg, #14a040, #0d7035);
+      box-shadow: 0 0 20px #44ff8833;
+      color: #ccffdd;
+    }
     #solo-btn {
       display: none;
       width: 100%;
@@ -325,7 +346,8 @@
           <div class="player-list-empty">Connecting...</div>
         </div>
 
-        <p class="lobby-waiting">Waiting for players&hellip;</p>
+        <p class="lobby-waiting" id="lobby-waiting-text">Waiting for players&hellip;</p>
+        <button id="start-btn">START GAME</button>
         <button id="solo-btn">PLAY SOLO</button>
 
       </div>
