@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon index.js",
+    "dev": "nodemon --watch . --watch ../shared index.js",
     "start": "node index.js"
   },
   "dependencies": {

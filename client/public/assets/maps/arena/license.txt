@@ -1,0 +1,11 @@
+Model Information:
+* title:	FPS Shooter Game Arena Map v3
+* source:	https://sketchfab.com/3d-models/fps-shooter-game-arena-map-v3-3f19a978e64943d5af13d2dd8a747a91
+* author:	Heart State Games® (https://sketchfab.com/heartstategames)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "FPS Shooter Game Arena Map v3" (https://sketchfab.com/3d-models/fps-shooter-game-arena-map-v3-3f19a978e64943d5af13d2dd8a747a91) by Heart State Games® (https://sketchfab.com/heartstategames) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

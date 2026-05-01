@@ -589,6 +589,16 @@ export class AudioManager {
     }
   }
 
+  streak(level = 2) {
+    // Ascending chime fanfare — more notes the higher the streak
+    const intervals = [0, 4, 7, 12, 15]; // C E G C' D'
+    const count = Math.min(level, intervals.length);
+    for (let i = 0; i < count; i++) {
+      const freq = 523 * Math.pow(2, intervals[i] / 12);
+      this._makeTone(freq, 0.16, 0.22 + 0.04 * i, i * 0.09);
+    }
+  }
+
   takeDamage() {
     const ctx = this._ctx;
     const now = ctx.currentTime;

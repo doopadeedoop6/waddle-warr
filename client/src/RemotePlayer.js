@@ -15,12 +15,16 @@ export default class RemotePlayer {
     this._color        = playerData.color || '#44aaff';
     this._networkState = null;
 
-    this._hp      = 100;
-    this._time    = 0;
-    this._lastPos = new THREE.Vector3();
-    this._moving  = false;
-    this._dead    = false;
-    this._falling = false;
+    this._hp         = 100;
+    this._time       = 0;
+    this._lastPos    = new THREE.Vector3();
+    this._moving     = false;
+    this._dead       = false;
+    this._falling    = false;
+    this._disposed   = false;
+    this._animPhase  = 0;
+    this._bodyPitch  = 0;
+    this._animQuat   = new THREE.Quaternion();
 
     this._buildMesh();
     this._buildLabel();
@@ -35,7 +39,7 @@ export default class RemotePlayer {
     this.body = new CANNON.Body({
       mass: 0,
       type: CANNON.Body.KINEMATIC,
-      shape: new CANNON.Sphere(0.9),
+      shape: new CANNON.Sphere(0.85),
       collisionFilterGroup: 1,
       collisionFilterMask: -1,
     });
@@ -46,9 +50,9 @@ export default class RemotePlayer {
   // ─────────────────────────────────────────── mesh ──
   _buildMesh() {
     this.group = buildPenguinCharacter();
-    // ── ใช้ helper จาก Player.js แทน traverse แบบเทียบ hex ──
-    // จะเปลี่ยนสีทั้ง body parts + tint fuzz layer ตามผู้เล่น
     applyPlayerColor(this.group, this._color);
+    this._bodyGroup = this.group.userData.bodyGroup ?? null;
+    this._torsoMesh = this._bodyGroup?.children[0] ?? null;
   }
 
   _buildHeldSnowball() {
@@ -139,16 +143,12 @@ export default class RemotePlayer {
   }
 
   update(delta) {
-    if (this._dead || !this._networkState) return;
+    if (this._disposed || this._dead || !this._networkState) return;
+    if (!this._networkState.alive) { this.group.visible = false; return; }
+    this.group.visible = true;
 
     this._time += delta;
-
     const ns = this._networkState;
-
-    if (!this._falling) {
-      this.group.position.copy(ns.position);
-      this.group.quaternion.copy(ns.quaternion);
-    }
 
     if (this.body) {
       this.body.position.set(ns.position.x, ns.position.y + 0.9, ns.position.z);
@@ -160,23 +160,109 @@ export default class RemotePlayer {
       this.updateHPBar(this._hp);
     }
 
-    this._updateChargeVisuals(ns);
+    if (this._falling) {
+      this._updateChargeVisuals(ns);
+      return;
+    }
 
-    const dist = this._lastPos.distanceTo(ns.position);
+    // Speed detection
+    const dist  = this._lastPos.distanceTo(ns.position);
+    const speed = delta > 0 ? dist / delta : 0;
     this._moving = dist > 0.05;
     this._lastPos.copy(ns.position);
+    const isGrounded = Math.abs(ns.velocityY ?? 0) < 1.5;
+    const isIdle     = !this._moving && isGrounded && !ns.isSliding;
 
-    const flippers = this.group.userData;
+    const ud      = this.group.userData;
+    const flipL   = ud.flipL;
+    const flipR   = ud.flipR;
+    const footL   = ud.footL;
+    const footR   = ud.footR;
+    const sliding = !!ns.isSliding;
     const charging = !!ns.charging;
 
-    if (this._moving && flippers.flipL && flippers.flipR && !charging) {
-      const swing = Math.sin(this._time * 8) * (Math.PI / 12);
-      flippers.flipL.rotation.z =  swing;
-      flippers.flipR.rotation.z = -swing;
+    // Body pitch: lean forward when sliding, upright otherwise
+    const targetPitch = sliding ? Math.PI / 2 : 0;
+    this._bodyPitch   = THREE.MathUtils.lerp(this._bodyPitch, targetPitch, 10 * delta);
 
-      const bob = Math.sin(this._time * 8) * 0.05;
-      this.group.position.y += bob;
+    let rollAngle  = 0;
+    let pitchAngle = this._bodyPitch;
+    let bobY       = 0;
+
+    if (!sliding && !charging && this._moving && flipL && flipR && footL && footR) {
+      // Walking / running
+      const phaseRate   = speed > 6 ? 12 : 8;
+      this._animPhase  += delta * phaseRate;
+      const phase       = this._animPhase;
+
+      footL.position.y = -0.85 + Math.max(0, Math.sin(phase)) * 0.25;
+      footR.position.y = -0.85 + Math.max(0, Math.sin(phase + Math.PI)) * 0.25;
+      footL.position.z =  0.25 + Math.sin(phase) * 0.15;
+      footR.position.z =  0.25 + Math.sin(phase + Math.PI) * 0.15;
+
+      rollAngle   = Math.sin(phase) * 0.2;
+      pitchAngle += Math.abs(Math.sin(phase * 2)) * 0.05;
+      bobY        = Math.sin(phase * 2) * 0.04;
+
+      const sway = Math.sin(phase) * 0.25;
+      flipL.rotation.z =  0.28 + Math.abs(sway);
+      flipL.rotation.x =  sway;
+      flipR.rotation.z = -0.28 - Math.abs(sway);
+      flipR.rotation.x = -sway;
+    } else if (sliding) {
+      if (footL && footR) {
+        footL.position.set(-0.3, -0.6, -0.2);
+        footR.position.set( 0.3, -0.6, -0.2);
+      }
+      if (flipL && flipR) {
+        flipL.rotation.set(0.5, 0,  1.0);
+        flipR.rotation.set(0.5, 0, -1.0);
+      }
+    } else {
+      // Idle
+      if (footL && footR) {
+        footL.position.set(-0.3, -0.85, 0.25);
+        footR.position.set( 0.3, -0.85, 0.25);
+      }
+      if (flipL && flipR && !charging) {
+        flipL.rotation.set(-0.08, -0.18, -0.28);
+        flipR.rotation.set(-0.08,  0.18,  0.28);
+      }
+      if (isIdle) bobY = Math.sin(this._time * 1.2) * 0.04;
     }
+
+    // ── Airborne wing-spread ──────────────────────────────────────────────────
+    if (!isGrounded && !sliding && flipL && flipR) {
+      const t = 1 - Math.pow(0.01, delta);
+      flipL.rotation.z += ( 0.9 - flipL.rotation.z) * t;
+      flipR.rotation.z += (-0.9 - flipR.rotation.z) * t;
+      flipL.rotation.x += ( 0   - flipL.rotation.x) * t;
+      flipR.rotation.x += ( 0   - flipR.rotation.x) * t;
+    }
+    // Torso x-scale: puff when airborne, restore on landing
+    if (this._torsoMesh) {
+      const tgtX = (!isGrounded && !sliding) ? 1.08 : 1.0;
+      this._torsoMesh.scale.x += (tgtX - this._torsoMesh.scale.x) * (1 - Math.pow(0.01, delta));
+    }
+    // ── Idle body sway ────────────────────────────────────────────────────────
+    if (this._bodyGroup) {
+      const tgtSwayZ = isIdle ? Math.sin(this._time * 1.2) * 0.04 : 0;
+      this._bodyGroup.rotation.z += (tgtSwayZ - this._bodyGroup.rotation.z) * (1 - Math.pow(0.08, delta));
+    }
+
+    // Position with forward-lean offset when sliding + walk bob + idle bob
+    const heightOffset = Math.sin(this._bodyPitch) * 0.5;
+    this.group.position.set(
+      ns.position.x,
+      ns.position.y + heightOffset + bobY,
+      ns.position.z
+    );
+
+    // Quaternion = server yaw (facing) × local animation (pitch + roll)
+    this._animQuat.setFromEuler(new THREE.Euler(pitchAngle, 0, rollAngle));
+    this.group.quaternion.copy(ns.quaternion).multiply(this._animQuat);
+
+    this._updateChargeVisuals(ns);
   }
 
   _updateChargeVisuals(ns) {
@@ -353,6 +439,8 @@ export default class RemotePlayer {
   }
 
   dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
     this._scene.remove(this.group);
 
     if (this.body && this._physics) {

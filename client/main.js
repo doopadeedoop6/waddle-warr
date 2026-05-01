@@ -37,6 +37,8 @@ let _network      = null;
 let _username     = '';
 let _gameLaunched = false;
 let _soloTimer    = null;
+let _duration     = 10;  // default match duration in minutes
+let _botCount     = 15;  // default bot count
 
 async function enterLobby() {
   const name = usernameInput.value.trim();
@@ -66,10 +68,47 @@ async function enterLobby() {
     requestAnimationFrame(() => { phase2.style.opacity = '1'; });
   }, 250);
 
+  // ── Wire bot count controls ───────────────────────────────────────────────
+  const botsEnabledEl   = document.getElementById('bots-enabled');
+  const botCountSlider  = document.getElementById('bot-count-slider');
+  const botCountLabel   = document.getElementById('bot-count-label');
+
+  function updateBotLabel() {
+    botCountLabel.textContent = _botCount === 0 ? 'No bots'
+      : _botCount === 1 ? '1 bot' : `${_botCount} bots`;
+  }
+
+  botCountSlider.addEventListener('input', () => {
+    _botCount = parseInt(botCountSlider.value, 10);
+    botsEnabledEl.checked = _botCount > 0;
+    updateBotLabel();
+  });
+
+  botsEnabledEl.addEventListener('change', () => {
+    if (!botsEnabledEl.checked) {
+      _botCount = 0;
+      botCountSlider.value = '0';
+    } else {
+      _botCount = 15;
+      botCountSlider.value = '15';
+    }
+    updateBotLabel();
+  });
+
   // ── Wire map buttons (after phase2 is displayed) ──────────────────────────
   document.querySelectorAll('.map-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (_network) _network.requestMapChange(btn.dataset.map);
+    });
+  });
+
+  // ── Wire duration buttons ──────────────────────────────────────────────────
+  document.querySelectorAll('.duration-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _duration = parseInt(btn.dataset.duration, 10);
+      document.querySelectorAll('.duration-btn').forEach(b =>
+        b.classList.toggle('active', b === btn)
+      );
     });
   });
 
@@ -79,10 +118,18 @@ async function enterLobby() {
   }, 6000);
 
   startBtn.addEventListener('click', () => {
-    if (_network) _network.requestStartGame();
+    if (_network) _network.requestStartGame(_duration, _botCount);
   });
 
-  soloBtn.addEventListener('click', () => launchGame(null));
+  soloBtn.addEventListener('click', () => {
+    if (_network?.isConnected) {
+      _network.requestSoloPlay(_duration, _botCount);
+      // Fall back to offline if server doesn't respond in 3 s
+      setTimeout(() => { if (!_gameLaunched) launchGame(null); }, 3000);
+    } else {
+      launchGame(null);
+    }
+  });
 
   // ── Connect to server ──────────────────────────────────────────────────────
   _network = new Network();

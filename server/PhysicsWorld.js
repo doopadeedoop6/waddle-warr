@@ -116,9 +116,18 @@ export class PhysicsWorld {
   }
 
   step(delta) {
-    this._world.step(TICK_RATE, delta, 3);
+    this._world.step(TICK_RATE, delta, 8);
 
     for (const [, body] of this._playerBodies) {
+      // Velocity cap prevents tunneling through thin walls at high speed
+      const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2 + body.velocity.z ** 2);
+      if (speed > 25) {
+        const s = 25 / speed;
+        body.velocity.x *= s;
+        body.velocity.y *= s;
+        body.velocity.z *= s;
+      }
+
       const supportY = this._getSupportY(body.position.x, body.position.y, body.position.z);
       const minY     = supportY + 0.9;
       if (body.position.y < minY) {
@@ -136,6 +145,7 @@ export class PhysicsWorld {
     const start  = new CANNON.Vec3(px, py + 50.0, pz);
     const end    = new CANNON.Vec3(px, this._mapLoader.groundY - 1, pz);
     const result = new CANNON.RaycastResult();
+    // mask: 1 → only hit group-1 bodies (ground plane + obstacle bodies); player bodies are group 2
     this._world.raycastClosest(start, end, { collisionFilterMask: 1 }, result);
     return result.hasHit ? result.hitPointWorld.y : this._mapLoader.groundY;
   }

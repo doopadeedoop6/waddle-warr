@@ -54,6 +54,11 @@ export default class Weapon {
 
     this._activeSnowballs = [];
     this._pool = [];
+
+    // Single tracking light that follows the newest active snowball
+    this._snowLight = new THREE.PointLight(0xffffff, 0, 18);
+    this._scene.add(this._snowLight);
+
     this._buildPool();
     this._setupInput();
   }
@@ -64,9 +69,11 @@ export default class Weapon {
     const geo = new THREE.SphereGeometry(0.25, 8, 8);
     for (let i = 0; i < SNOWBALL_POOL_SIZE; i++) {
       const mat = new THREE.MeshStandardMaterial({
-        color: this._player.playerColor,
-        roughness: 0.95,
-        metalness: 0,
+        color:            this._player.playerColor,
+        emissive:         this._player.playerColor,
+        emissiveIntensity: 0.55,
+        roughness: 0.65,
+        metalness: 0.05,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.visible = false;
@@ -202,8 +209,8 @@ export default class Weapon {
 
         // splat effect สีผู้ยิง
         const hitPos = new THREE.Vector3(hitBody.position.x, hitBody.position.y, hitBody.position.z);
-        this._particles.emit(hitPos, new THREE.Vector3(0, 1, 0), this._player.playerColor, 12, 6, 60);
-        this._particles.emit(hitPos, new THREE.Vector3(0, 1, 0), 0xffffff, 4, 3, 45);
+        this._particles.emit(hitPos, new THREE.Vector3(0, 1, 0), this._player.playerColor, 18, 8, 60, 4.5);
+        this._particles.emit(hitPos, new THREE.Vector3(0, 1, 0), 0xffffff, 8, 5, 45, 2.5);
 
         const playerPos = new THREE.Vector3(this._player.body.position.x, this._player.body.position.y, this._player.body.position.z);
         const distRatio = 1 - Math.min(hitPos.distanceTo(playerPos) / 50, 1);
@@ -215,8 +222,8 @@ export default class Weapon {
       // ── ชน terrain/rock: snow splat ──
       const sbPos = new THREE.Vector3(snowball.body.position.x, snowball.body.position.y, snowball.body.position.z);
       const surfNormal = this._map ? this._map.surfaceNormal : new THREE.Vector3(0, 1, 0);
-      this._particles.emit(sbPos, surfNormal, this._player.playerColor, 8, 5, 45);
-      this._particles.emit(sbPos, surfNormal, 0xffffff, 4, 3, 60);
+      this._particles.emit(sbPos, surfNormal, this._player.playerColor, 12, 6, 45, 3.5);
+      this._particles.emit(sbPos, surfNormal, 0xffffff, 6, 4, 60, 2.0);
 
       // despawn ทันที
       snowball.body.removeEventListener('collide', onCollide);
@@ -273,6 +280,8 @@ export default class Weapon {
     snowball.active = true;
     snowball.life   = SNOWBALL_LIFETIME;
     snowball.mesh.material.color.copy(this._player.playerColor);
+    snowball.mesh.material.emissive.copy(this._player.playerColor);
+    snowball.mesh.material.emissiveIntensity = 0.55;
     audio.shoot();
 
     this._activeSnowballs.push(snowball);
@@ -440,6 +449,16 @@ export default class Weapon {
       if (this._reloadTimer <= 0) this._finishReload();
     }
 
+    // Tracking glow light — follows newest active snowball
+    if (this._activeSnowballs.length > 0) {
+      const newest = this._activeSnowballs[this._activeSnowballs.length - 1];
+      this._snowLight.position.copy(newest.mesh.position);
+      this._snowLight.color.copy(this._player.playerColor);
+      this._snowLight.intensity = 2.8 * newest.scale;
+    } else {
+      this._snowLight.intensity = 0;
+    }
+
     // Melee animation
     this._updateMelee(delta);
 
@@ -451,9 +470,20 @@ export default class Weapon {
       sb.mesh.position.copy(sb.body.position);
       sb.mesh.quaternion.copy(sb.body.quaternion);
       if (sb.active) {
-        // ยิ่งลูกใหญ่ ละอองยิ่งออกเยอะ
-        if (Math.random() > (0.3 / sb.mesh.scale.x)) {
-          this._particles.emit(sb.mesh.position, new THREE.Vector3(0, 1, 0), 0xffffff, 1, 1, 360);
+        // Comet trail — emit behind velocity direction
+        const vel = new THREE.Vector3(sb.body.velocity.x, sb.body.velocity.y, sb.body.velocity.z);
+        const speed = vel.length();
+        if (speed > 1 && Math.random() > (0.35 / sb.mesh.scale.x)) {
+          const trailDir = vel.clone().negate().normalize();
+          this._particles.emit(
+            sb.mesh.position.clone().addScaledVector(trailDir, 0.25 * sb.scale),
+            trailDir,
+            0xddeeff,
+            Math.ceil(sb.scale),
+            2.0,
+            18,
+            1.2 * sb.scale,
+          );
         }
       }
 
@@ -477,8 +507,8 @@ export default class Weapon {
             sb._hitRemote = true;
             const dmg = Math.min(SNOWBALL_DAMAGE_MAX, Math.round(SNOWBALL_DAMAGE * (sb.scale ?? 1)));
             if (this._network) this._network.sendHit(rp.id, dmg);
-            this._particles.emit(pos, new THREE.Vector3(0,1,0), this._player.playerColor, 12, 6, 60);
-            this._particles.emit(pos, new THREE.Vector3(0,1,0), 0xffffff, 4, 3, 45);
+            this._particles.emit(pos, new THREE.Vector3(0,1,0), this._player.playerColor, 18, 8, 60, 4.5);
+            this._particles.emit(pos, new THREE.Vector3(0,1,0), 0xffffff, 8, 5, 45, 2.5);
             const playerPos = new THREE.Vector3(this._player.body.position.x, this._player.body.position.y, this._player.body.position.z);
             const distRatio = 1 - Math.min(pos.distanceTo(playerPos) / 50, 1);
             audio.hitPlayer(distRatio);
@@ -494,8 +524,8 @@ export default class Weapon {
       if (hitGround || sb.life <= 0) {
         if (hitGround) {
           const surfNormal = this._map ? this._map.surfaceNormal : new THREE.Vector3(0, 1, 0);
-          this._particles.emit(pos, surfNormal, this._player.playerColor, 8, 5, 45);
-          this._particles.emit(pos, surfNormal, 0xffffff, 4, 3, 60);
+          this._particles.emit(pos, surfNormal, this._player.playerColor, 12, 6, 45, 3.5);
+          this._particles.emit(pos, surfNormal, 0xffffff, 6, 4, 60, 2.0);
           audio.hitTerrain();
         }
         this._despawnSnowball(sb, i);
@@ -527,7 +557,27 @@ export default class Weapon {
     this._activeSnowballs.splice(idx, 1);
   }
 
-  // ─── Getters ───────────────────────────────────────────────────────────────
+  // ─── Respawn / pickup helpers ──────────────────────────────────────────────
+
+  /** Full ammo reset on respawn. */
+  reset() {
+    this._magazine    = MAG_SIZE;
+    this._reserve     = RESERVE_START;
+    this._reloading   = false;
+    this._reloadTimer = 0;
+    this._isCharging  = false;
+    this._chargeTimer = 0;
+    this._crushed     = false;
+  }
+
+  /** Add ammo from a pickup. Magazine fills first, then reserve. */
+  addAmmo(amount) {
+    const magNeed = MAG_SIZE - this._magazine;
+    const toMag   = Math.min(magNeed, amount);
+    this._magazine += toMag;
+    this._reserve   = Math.min(RESERVE_START, this._reserve + (amount - toMag));
+    if (this._reloading) { this._reloading = false; this._reloadTimer = 0; }
+  }
 
   // ─── Getters ───────────────────────────────────────────────────────────────
 

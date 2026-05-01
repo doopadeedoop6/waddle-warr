@@ -11,7 +11,7 @@ export const COLOR_FUZZ      = 0xAACCEE; // ขนฟู — จะถูก tin
 
 // ── GAME CONSTANTS ──
 const MOVE_FORCE        = 45;
-const ICE_DAMPING       = 0.88;
+const ICE_DAMPING       = 0.83;
 const STOP_THRESHOLD    = 0.08;
 const JUMP_IMPULSE      = 9;
 const SLIDE_BOOST_FORCE = 45;
@@ -300,7 +300,7 @@ export function buildPenguinCharacter() {
 
   group.add(headGroup, bodyGroup, limbsGroup);
 
-  group.userData = { flipL, flipR, footL, footR };
+  group.userData = { flipL, flipR, footL, footR, bodyGroup, headGroup };
   return group;
 }
 
@@ -315,6 +315,8 @@ export class Player {
     this.hp          = 100;
     this.ammo        = 20;
     this.kills       = 0;
+    this.deaths      = 0;
+    this.assists     = 0;
     this.slideFuel   = MAX_SLIDE_FUEL;
     this.playerColor = new THREE.Color(0x44aaff);
 
@@ -332,6 +334,7 @@ export class Player {
     this.isSliding  = false;
     this._stunTimer = 0;
     this._bodyPitch = 0;
+    this._cPrevKey  = false;
 
     this._canAirDash = true;
 
@@ -355,6 +358,8 @@ export class Player {
     this._footR = this.group.userData.footR;
     this.leftFlipper  = this._flipL;
     this.rightFlipper = this._flipR;
+    this._bodyGroup   = this.group.userData.bodyGroup ?? null;
+    this._torsoMesh   = this._bodyGroup?.children[0] ?? null;
 
     // กระเป๋า
     const bagGroup = new THREE.Group();
@@ -396,7 +401,7 @@ export class Player {
   }
 
   _buildPhysics() {
-    const shape = new CANNON.Sphere(0.9);
+    const shape = new CANNON.Sphere(0.85);
     this.body = new CANNON.Body({ mass: 1, shape,
       linearDamping: 0.4,
       angularDamping: 1.0,
@@ -416,10 +421,9 @@ export class Player {
     this.body.addEventListener('collide', (e) => {
       const contact = e.contact;
       const cv = contact.bi === this.body ? contact.ri : contact.rj;
-      if (cv.y < -0.15) {
+      if (cv.y < -0.05) {
         this._groundedByCollision = true;
-        this._groundedCoyoteFrames = 4;
-        // Store the actual surface normal (-cv/|cv|) so slope movement uses the right axis
+        this._groundedCoyoteFrames = 6;
         const len = Math.sqrt(cv.x * cv.x + cv.y * cv.y + cv.z * cv.z);
         if (len > 0.001) this._floorNormal.set(-cv.x / len, -cv.y / len, -cv.z / len);
       }
@@ -432,6 +436,7 @@ export class Player {
       if (e.code === 'Space' && !e.repeat) audio.jump(false);
     });
     document.addEventListener('keyup',   (e) => { this.keys[e.code] = false; });
+    window.addEventListener('blur', () => { this.keys = {}; });
     document.addEventListener('click', () => { document.body.requestPointerLock(); });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement) {
@@ -444,9 +449,43 @@ export class Player {
   update(delta) {
     // Hard floor clamp — mirrors server-side safety net, prevents sinking through ground plane
     const groundY = this.map.groundY;
-    if (this.body.position.y < groundY + 0.9) {
-      this.body.position.y = groundY + 0.9;
+    if (this.body.position.y < groundY + 0.85) {
+      this.body.position.y = groundY + 0.85;
       if (this.body.velocity.y < 0) this.body.velocity.y = 0;
+      this._groundedByCollision = true;
+      this._groundedCoyoteFrames = 6;
+    }
+
+    // Sphere-AABB penetration resolution: push player out of any overlapping obstacle
+    // and cancel the penetrating velocity component. Handles side/top/corner cases correctly.
+    const _collBoxes = this.map?.getCollisionBoxes?.() ?? [];
+    const _bpos = this.body.position;
+    const _COLL_R = 0.85;
+    for (const box of _collBoxes) {
+      const cx = Math.max(box.min.x, Math.min(box.max.x, _bpos.x));
+      const cy = Math.max(box.min.y, Math.min(box.max.y, _bpos.y));
+      const cz = Math.max(box.min.z, Math.min(box.max.z, _bpos.z));
+      const dx = _bpos.x - cx, dy = _bpos.y - cy, dz = _bpos.z - cz;
+      const dist2 = dx * dx + dy * dy + dz * dz;
+      if (dist2 >= _COLL_R * _COLL_R) continue;
+      if (dist2 < 1e-6) {
+        // Center is inside box — eject upward (most common: fell through floor)
+        _bpos.y = box.max.y + _COLL_R;
+        if (this.body.velocity.y < 0) this.body.velocity.y = 0;
+        continue;
+      }
+      const dist = Math.sqrt(dist2);
+      const nx = dx / dist, ny = dy / dist, nz = dz / dist;
+      const pen = _COLL_R - dist;
+      _bpos.x += nx * pen;
+      _bpos.y += ny * pen;
+      _bpos.z += nz * pen;
+      const velN = this.body.velocity.x * nx + this.body.velocity.y * ny + this.body.velocity.z * nz;
+      if (velN < 0) {
+        this.body.velocity.x -= velN * nx;
+        this.body.velocity.y -= velN * ny;
+        this.body.velocity.z -= velN * nz;
+      }
     }
 
     // Velocity cap — prevents tunneling through thin geometry at high speed
@@ -463,9 +502,9 @@ export class Player {
 
     const gravity = this.map.gravity;
     this.body.applyForce(new CANNON.Vec3(gravity.x, gravity.y, gravity.z), new CANNON.Vec3(0, 0, 0));
-    // Collision-based grounding with 4-frame coyote window — works on any surface shape.
+    // Collision-based grounding with 6-frame coyote window — works on any surface shape.
     if (this._groundedByCollision) {
-      this._groundedCoyoteFrames = 4;
+      this._groundedCoyoteFrames = 6;
       this._groundedByCollision  = false;
     } else if (this._groundedCoyoteFrames > 0) {
       this._groundedCoyoteFrames--;
@@ -490,7 +529,16 @@ export class Player {
       if (this._fallTimer <= 0) this.isFallen = false;
     }
 
-    this.isSliding = canControl && this._grounded && (this.keys['ControlLeft'] || this.keys['ControlRight']);
+    const cKey = canControl && !!this.keys['KeyC'];
+    // Enter slide only when grounded; stay in it while C is held even if briefly airborne
+    const slideJustStart = cKey && !this._cPrevKey && this._grounded;
+    this._cPrevKey = cKey;
+    if (!cKey) {
+      this.isSliding = false;
+    } else if (!this.isSliding && this._grounded) {
+      this.isSliding = true;
+    }
+    // else: keep isSliding=true while C held even during brief air gaps
 
     const up      = surfaceNormal.clone();
     // When grounded, use the actual contact surface normal so slopes work correctly.
@@ -522,22 +570,26 @@ export class Player {
       );
     }
 
+    // Slide burst: when C is first pressed on the ground, launch in facing direction
+    if (slideJustStart) {
+      const slideDir = moveDir.lengthSq() > 0 ? moveDir.clone().normalize() : forward.clone();
+      this.body.applyImpulse(
+        new CANNON.Vec3(slideDir.x * 10, 0, slideDir.z * 10),
+        new CANNON.Vec3(0, 0, 0)
+      );
+    }
+
     const boosting = canControl && this._grounded && this.keys['ShiftLeft'] && this.slideFuel > 0;
 
     if (boosting) {
-      this.slideFuel -= delta;
-      if (this.slideFuel <= 0 && !this.isFallen) {
-        this.isFallen  = true;
-        this._fallTimer = 0.75;
-        this.isSliding  = false;
-      }
+      this.slideFuel = Math.max(0, this.slideFuel - delta);
     } else if (this._grounded && !this.isFallen) {
       this.slideFuel = Math.min(MAX_SLIDE_FUEL, this.slideFuel + delta * (MAX_SLIDE_FUEL / SLIDE_RECHARGE));
     }
 
-    // On any slope: cancel gravity's tangential component when standing still.
-    // This is static friction — prevents sliding on ramps, hills, and curved surfaces.
-    if (this._grounded && moveDir.lengthSq() === 0 && !boosting && !this.isFallen) {
+    // On any slope: cancel gravity's tangential component so the penguin can walk up ramps.
+    // Applied whether moving or standing — static + kinetic friction combined.
+    if (this._grounded && !boosting && !this.isFallen) {
       const grav       = new THREE.Vector3(gravity.x, gravity.y, gravity.z);
       const gravAlongN = floorUp.clone().multiplyScalar(grav.dot(floorUp));
       const gravTang   = grav.clone().sub(gravAlongN);
@@ -560,7 +612,7 @@ export class Player {
         if (!this._grounded) {
           forceMult = MOVE_FORCE * 0.2;
         } else if (this.isSliding) {
-          forceMult = boosting ? SLIDE_BOOST_FORCE * 1.5 : MOVE_FORCE * 0.5;
+          forceMult = boosting ? SLIDE_BOOST_FORCE * 1.5 : SLIDE_BOOST_FORCE;
         } else if (boosting) {
           forceMult = SLIDE_BOOST_FORCE;
         }
@@ -602,6 +654,7 @@ export class Player {
 
     this._waddleTime += delta;
     const isMoving = moveDir.lengthSq() > 0;
+    const isIdle   = !isMoving && this._grounded && !this.isSliding && !this.isFallen && canControl;
 
     const phase    = this._waddleTime * (boosting ? 12 : 8);
 
@@ -620,7 +673,9 @@ export class Player {
     let pitchAngle = 0;
 
     const targetBodyPitch = (this.isSliding || this.isFallen) ? Math.PI / 2 : 0;
-    this._bodyPitch = THREE.MathUtils.lerp(this._bodyPitch || 0, targetBodyPitch, 10 * delta);
+    // Snap into slide quickly; ease back up more slowly to avoid jarring pop
+    const pitchRate = targetBodyPitch > (this._bodyPitch || 0) ? 18 : 10;
+    this._bodyPitch = THREE.MathUtils.lerp(this._bodyPitch || 0, targetBodyPitch, pitchRate * delta);
     pitchAngle += this._bodyPitch;
 
     if (canControl && !this.isSliding && !this.isFallen) {
@@ -655,6 +710,26 @@ export class Player {
       }
     }
 
+    // ── Airborne wing-spread ──────────────────────────────────────────────────
+    // Applied after the walk/idle block so it overrides flipper z-rotation mid-air.
+    if (!this._grounded && !this.isSliding && !this.isFallen && canControl) {
+      const t = 1 - Math.pow(0.01, delta);
+      this._flipL.rotation.z += ( 0.9 - this._flipL.rotation.z) * t;
+      this._flipR.rotation.z += (-0.9 - this._flipR.rotation.z) * t;
+      this._flipL.rotation.x += ( 0   - this._flipL.rotation.x) * t;
+      this._flipR.rotation.x += ( 0   - this._flipR.rotation.x) * t;
+    }
+    // Torso x-scale: puff slightly when airborne, deflate on landing
+    if (this._torsoMesh) {
+      const tgtX = (!this._grounded && !this.isSliding && canControl) ? 1.08 : 1.0;
+      this._torsoMesh.scale.x += (tgtX - this._torsoMesh.scale.x) * (1 - Math.pow(0.01, delta));
+    }
+    // ── Idle body sway ────────────────────────────────────────────────────────
+    if (this._bodyGroup) {
+      const tgtSwayZ = isIdle ? Math.sin(this._waddleTime * 1.2) * 0.04 : 0;
+      this._bodyGroup.rotation.z += (tgtSwayZ - this._bodyGroup.rotation.z) * (1 - Math.pow(0.08, delta));
+    }
+
     const zAxis = forward.clone();
     const yAxis = surfaceNormal.clone();
     const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize();
@@ -664,8 +739,10 @@ export class Player {
     targetQuat.multiply(animQuat);
     this.group.quaternion.copy(targetQuat);
 
-    const heightOffset = this._bodyPitch > 0.5 ? 0.5 : 0;
-    this.group.position.copy(threePos.clone().addScaledVector(surfaceNormal, heightOffset));
+    // No height offset while sliding — stays flat on ground, no up-down bounce
+    const heightOffset = this.isSliding ? 0 : Math.sin(this._bodyPitch) * 0.5;
+    const idleBobY     = isIdle ? Math.sin(this._waddleTime * 1.2) * 0.04 : 0;
+    this.group.position.copy(threePos.clone().addScaledVector(surfaceNormal, heightOffset + idleBobY));
 
     const hpBar   = document.getElementById('hp-bar');
     const hpVal   = document.getElementById('hp-val');
@@ -673,6 +750,20 @@ export class Player {
     if (hpBar)   hpBar.style.width   = this.hp + '%';
     if (hpVal)   hpVal.textContent   = this.hp;
     if (fuelBar) fuelBar.style.width = (this.slideFuel / MAX_SLIDE_FUEL * 100) + '%';
+  }
+
+  // Returns false if placing the player sphere at `position` would overlap any obstacle box.
+  // radius 0.9 matches PhysicsWorld.addPlayer()'s CANNON.Sphere so the check is consistent.
+  isPositionValid(position, collisionBoxes) {
+    const center = new THREE.Vector3(position.x, position.y, position.z);
+    const playerSphere = new THREE.Sphere(center, 0.85);
+    for (const box of collisionBoxes) {
+      // Player is standing ON TOP of this box — sphere touching the surface from
+      // above is not penetration. Skip to avoid zeroing velocity every frame.
+      if (position.y > box.max.y) continue;
+      if (box.intersectsSphere(playerSphere)) return false;
+    }
+    return true;
   }
 
   getMuzzlePosition() {

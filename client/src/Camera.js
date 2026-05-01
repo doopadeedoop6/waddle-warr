@@ -16,6 +16,13 @@ export default class ThirdPersonCamera {
     const startNormal = map.surfaceNormal;
     this._currentPosition = startPos.clone().addScaledVector(startNormal, CAM_UP + 2);
     this._currentLookat   = startPos.clone();
+
+    this._shakeIntensity = 0;
+  }
+
+  /** Trigger camera shake — higher = more violent. Decays automatically. */
+  shake(intensity) {
+    this._shakeIntensity = Math.max(this._shakeIntensity, intensity);
   }
 
   update(delta) {
@@ -65,6 +72,16 @@ export default class ThirdPersonCamera {
     this._camera.position.copy(this._currentPosition);
     this._camera.up.copy(surfaceNormal); // prevents roll at poles
     this._camera.lookAt(this._currentLookat);
+
+    // ---- Screen shake ----
+    if (this._shakeIntensity > 0.002) {
+      this._camera.position.x += (Math.random() - 0.5) * this._shakeIntensity;
+      this._camera.position.y += (Math.random() - 0.5) * this._shakeIntensity;
+      this._camera.position.z += (Math.random() - 0.5) * this._shakeIntensity;
+      this._shakeIntensity *= 0.78;
+    } else {
+      this._shakeIntensity = 0;
+    }
 
     // Store world-space forward for weapon aiming
     this._forward.copy(aimDir);

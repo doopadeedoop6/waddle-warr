@@ -11,6 +11,10 @@ import HUD from './HUD.js';
 import Network from './Network.js';
 import RemotePlayer from './RemotePlayer.js';
 import { audio } from './AudioManager.js';
+import { DeathDropSystem } from './DeathDropSystem.js';
+
+
+
 
 export class Game {
   constructor(username, preNetwork = null) {
@@ -18,6 +22,9 @@ export class Game {
     this.clock       = new THREE.Clock();
     this._inputSeq   = 0;
     this._preNetwork = preNetwork;
+    this._killStreak = 0;
+    this._lastKillTime = 0;
+    this._dmgNumbers = [];
   }
 
   async start() {
@@ -56,8 +63,10 @@ export class Game {
     }
 
     // ── Build map (visual + client physics) ──
+    // await so async loaders (e.g. ArenaMap GLTFLoader) finish before player spawns.
+    // Synchronous maps return undefined; await undefined resolves immediately.
     this.map = createMap(resolvedMapId);
-    this.map.build(this.scene, this.physicsWorld);
+    await this.map.build(this.scene, this.physicsWorld);
     this.hud.setMap(this.map);
 
     // ── Physics debugger (toggle with ` key) ──
@@ -76,6 +85,10 @@ export class Game {
     this._debugPhysics = false;
     this._debugLabel = this._createDebugLabel();
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') {
+        if (this.hud.isMenuVisible()) this.hud.hideMenuOverlay();
+        else this.hud.showMenuOverlay();
+      }
       if (e.code === 'Backquote') {
         this._debugPhysics = !this._debugPhysics;
         this._debugGroup.visible = this._debugPhysics;
@@ -98,6 +111,7 @@ export class Game {
       this.scene, this.physicsWorld, this.player,
       this.thirdPersonCamera, this.particles, this.network, this.map
     );
+    this.deathDrops      = new DeathDropSystem(this.scene);
 
     // ── Apply server-assigned color ──
     if (joinData?.color) {
@@ -108,6 +122,7 @@ export class Game {
     // ── Network callbacks ──
     this._lastKnownHp = 100;
     this._isDead      = false;
+    this._showScoreboard = false;
 
     this.network.onGameState((state) => {
       this.weapon.remotePlayers = this.network.remotePlayers;
@@ -119,23 +134,46 @@ export class Game {
         this.hud.setZone(state.zone.radius, state.zone.active);
       }
 
+      // Game timer
+      if (state.timeRemaining != null) {
+        this.hud.setGameTimer(state.timeRemaining, state.gameDuration);
+      }
+
       const total = this.network.remotePlayers.length + 1;
-      const alive = this.network.remotePlayers.filter(p => p.alive).length + 1;
+      const remoteAlive = this.network.remotePlayers.filter(p => p.alive).length;
+      const alive = remoteAlive + (this._isDead ? 0 : 1);
       this.hud.setPlayerCount(alive, total);
 
       const myState = state.players?.find(p => p.id === this.network.playerId);
-      if (myState && myState.hp < this._lastKnownHp) {
-        this.hud.takeDamage();
-        audio.takeDamage();
-        this.player.hp = myState.hp;
-        const pos = new THREE.Vector3(
-          this.player.body.position.x,
-          this.player.body.position.y + 1,
-          this.player.body.position.z
-        );
-        this.particles.emit(pos, new THREE.Vector3(0,1,0), 0xaaccff, 10, 4, 360);
+      if (myState) {
+        if (myState.hp < this._lastKnownHp && !this._isDead) {
+          const dmgDealt = this._lastKnownHp - myState.hp;
+          this.hud.takeDamage();
+          audio.takeDamage();
+          this.thirdPersonCamera.shake(0.45 + dmgDealt * 0.012);
+          const pos = new THREE.Vector3(
+            this.player.body.position.x,
+            this.player.body.position.y + 1,
+            this.player.body.position.z
+          );
+          this.particles.emit(pos, new THREE.Vector3(0,1,0), 0xaaccff, 10, 4, 360);
+          this._spawnDamageNumber(pos, dmgDealt, false);
+        }
+        // Always sync HP from server (handles respawn 0→100 edge case too)
+        this.player.hp       = myState.hp;
+        this._lastKnownHp    = myState.hp;
+        this.player.kills    = myState.kills   ?? 0;
+        this.player.deaths   = myState.deaths  ?? 0;
+        this.player.assists  = myState.assists ?? 0;
       }
-      if (myState) this._lastKnownHp = myState.hp;
+    });
+
+    // Tab key: hold to show scoreboard
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Tab') { e.preventDefault(); this._showScoreboard = true; }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Tab') { this._showScoreboard = false; this.hud.hideScoreboard(); }
     });
 
     this._remoteMeshes = new Map();
@@ -150,15 +188,44 @@ export class Game {
         const sourcePos = attackerRm ? attackerRm.position : new THREE.Vector3();
         this.player.takeMeleeHit(sourcePos);
         this.hud.takeDamage();
+        this.thirdPersonCamera.shake(0.55);
       }
     });
 
     this.network.onPlayerDied(({ id, killerName, victimName, method, knockbackDir }) => {
       this.hud.addKill(killerName, victimName, method);
-      if (method === 'snowball') this.hud.notify('WADDLED! ❄', 2000);
-      if (method === 'melee')   this.hud.notify('SLAPPED! 🐧', 2000);
 
-      if (killerName === this.username) audio.kill();
+      // Spawn a death drop at the victim's last known position
+      if (this.deathDrops) {
+        let dp;
+        if (id === this.network.playerId) {
+          dp = this.player.body.position;
+        } else {
+          dp = this.network.remotePlayers.find(r => r.id === id)?.position;
+        }
+        if (dp) this.deathDrops.spawnDrop(dp.x, dp.y, dp.z);
+      }
+
+      // Only show death notification to the player who died
+      if (id === this.network.playerId) {
+        if (method === 'snowball') this.hud.notify('YOU WERE WADDLED! ❄', 2000);
+        if (method === 'melee')   this.hud.notify('YOU WERE SLAPPED! 🐧', 2000);
+        if (method === 'void')    this.hud.notify('YOU FELL INTO THE VOID!', 2000);
+      }
+
+      if (killerName === this.username) {
+        audio.kill();
+        this.thirdPersonCamera.shake(0.3);
+        const now = Date.now();
+        const timeSinceLast = now - this._lastKillTime;
+        if (timeSinceLast < 4000) {
+          this._killStreak++;
+        } else {
+          this._killStreak = 1;
+        }
+        this._lastKillTime = now;
+        this._announceStreak(this._killStreak);
+      }
 
       if (id === this.network.playerId) {
         audio.died();
@@ -166,7 +233,7 @@ export class Game {
         this.player.group.visible = false;
         this.player.isFallen = true;
         this.player._fallTimer = 999;
-        this.hud.notify('YOU DIED... respawning 🐧', 3000);
+        this.hud.showRespawnCountdown(5);
       } else {
         const rm = this._remoteMeshes.get(id);
         if (rm) rm.playDeathAnimation(method, knockbackDir);
@@ -186,13 +253,37 @@ export class Game {
         this.player.body.velocity.set(0, 0, 0);
         this.player.body.force.set(0, 0, 0);
         this.player.body.aabbNeedsUpdate = true;
+        this.weapon.reset();  // full ammo on respawn
+        this.hud.hideRespawnCountdown();
         this.hud.notify('BACK IN THE WADDLE! 🐧', 1500);
+      } else {
+        // Remote player respawn: dispose old mesh (death animation may have destroyed it)
+        // and let _animate() recreate a fresh RemotePlayer on the next frame.
+        const oldRm = this._remoteMeshes.get(id);
+        if (oldRm) {
+          oldRm.dispose();
+          this._remoteMeshes.delete(id);
+        }
+        // Seed the network position buffer so the new mesh spawns at the correct spot
+        const remote = this.network.remotePlayers.find(r => r.id === id);
+        if (remote) {
+          remote._buffer = [];
+          remote.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+          remote.alive = true;
+          remote.hp    = hp;
+        }
       }
     });
 
-    this.network.onGameOver(({ winnerName }) => {
-      this.hud.notify(`🏆 ${winnerName} WINS!`, 6000);
+    this.network.onGameOver(({ winnerName, standings }) => {
+      const isMe = winnerName === this.username;
+      this.hud.notify(isMe ? `🐟 WINNER WINNER FISH DINNER!` : `🏆 ${winnerName} WINS!`, 8000);
       if (winnerName === this.username) audio.win();
+      if (standings) {
+        this.hud.showFinalScoreboard(standings, this.network.playerId, winnerName);
+        // Auto-return to lobby after 25 s; player can also click "Play Again" button
+        setTimeout(() => location.reload(), 25000);
+      }
     });
 
     // ── Remote projectiles (visual only — no physics) ──
@@ -292,13 +383,49 @@ export class Game {
     const delta = Math.min(this.clock.getDelta(), 0.05);
 
     this.physicsWorld.step(1 / 60, delta, 10);
+    this.map?.update?.(delta);
 
     if (this.player) {
+      // Client-side void detection (backup for offline / solo mode)
+      if (!this._isDead && this.player.body.position.y < -5) {
+        this._isDead = true;
+        this.player.group.visible = false;
+        this.player.isFallen = true;
+        this.player._fallTimer = 999;
+        audio.died();
+        this.hud.showRespawnCountdown(5);
+        setTimeout(() => {
+          if (!this._isDead) return;
+          const sp = this.map.spawnPoints;
+          const pt = sp[Math.floor(Math.random() * sp.length)];
+          this._isDead = false;
+          this.player.group.visible = true;
+          this.player.isFallen = false;
+          this.player._fallTimer = 0;
+          this.player.hp = 100;
+          this.player.body.position.set(pt.x, pt.y + 1, pt.z);
+          this.player.body.previousPosition.set(pt.x, pt.y + 1, pt.z);
+          this.player.body.velocity.set(0, 0, 0);
+          this.weapon.reset();
+          this.hud.hideRespawnCountdown();
+          this.hud.notify('BACK IN THE WADDLE! 🐧', 1500);
+        }, 5000);
+      }
+
       this.player.update(delta);
       this.thirdPersonCamera.update(delta);
       this.weapon.update(delta);
       this.particles.update(delta);
       this._updateRemoteProjectiles(delta);
+
+      // ── Death drops ──
+      if (!this._isDead && this.deathDrops) {
+        this.deathDrops.update(delta, this.player.body.position, (ammo, hp) => {
+          this.weapon.addAmmo(ammo);
+          this.network.sendDropCollected();
+          this.hud.notify(`+${ammo} AMMO  +${hp} HP 🐟`, 1800);
+        });
+      }
 
       this.network.update(delta, this.player);
 
@@ -347,6 +474,7 @@ export class Game {
         melee:    !!this.player.keys['KeyF'],
         charging:     !!this.weapon.isCharging,
         chargeAmount: this.weapon.chargeAmount ?? 0,
+        isSliding:    !!this.player.isSliding,
         position:   {
           x: this.player.body.position.x,
           y: this.player.body.position.y,
@@ -370,11 +498,33 @@ export class Game {
         color: rm._color,
       }));
       this.hud.update(this.player, this.weapon, remoteList);
+
+      // Live K/D/A scoreboard (Tab hold)
+      if (this._showScoreboard) {
+        const allPlayers = this.network.remotePlayers.map(rp => ({
+          id:       rp.id,
+          username: rp.username,
+          color:    rp.color,
+          kills:    rp.kills   ?? 0,
+          deaths:   rp.deaths  ?? 0,
+          assists:  rp.assists ?? 0,
+        }));
+        allPlayers.push({
+          id:       this.network.playerId,
+          username: this.username,
+          color:    '#' + this.player.playerColor.getHexString(),
+          kills:    this.player.kills   ?? 0,
+          deaths:   this.player.deaths  ?? 0,
+          assists:  this.player.assists ?? 0,
+        });
+        this.hud.showScoreboard(allPlayers, this.network.playerId);
+      }
     }
 
     if (this._debugPhysics) {
       try { this._cannonDebugger.update(); } catch (e) { console.error('[PhysicsDebug]', e); }
     }
+    this._updateDamageNumbers();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -389,5 +539,60 @@ export class Game {
     });
     document.body.appendChild(el);
     return el;
+  }
+
+  _spawnDamageNumber(worldPos, amount, isEnemy = true) {
+    const v = worldPos.clone();
+    v.project(this.camera);
+    const sx = (v.x + 1) / 2 * window.innerWidth;
+    const sy = (-v.y + 1) / 2 * window.innerHeight;
+    if (v.z > 1) return; // behind camera
+
+    const el = document.createElement('div');
+    el.textContent = isEnemy ? `-${Math.round(amount)}` : `${Math.round(amount)}`;
+    const hue = isEnemy ? '200' : '0';
+    Object.assign(el.style, {
+      position: 'fixed',
+      left: sx + 'px', top: sy + 'px',
+      transform: 'translate(-50%, -50%)',
+      color: isEnemy ? '#ff5555' : '#44aaff',
+      fontSize: Math.min(32, 18 + amount * 0.2) + 'px',
+      fontWeight: '900',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      textShadow: `0 0 8px hsl(${hue},100%,60%), 0 2px 4px rgba(0,0,0,0.8)`,
+      pointerEvents: 'none',
+      zIndex: '500',
+      letterSpacing: '0.05em',
+      userSelect: 'none',
+    });
+    document.body.appendChild(el);
+    this._dmgNumbers.push({ el, sy, life: 1.0, vy: -80 });
+  }
+
+  _updateDamageNumbers() {
+    const dt = Math.min(this.clock.getDelta ? 0.016 : 0.016, 0.05);
+    for (let i = this._dmgNumbers.length - 1; i >= 0; i--) {
+      const d = this._dmgNumbers[i];
+      d.life -= 0.025;
+      d.sy += d.vy * 0.016;
+      d.el.style.top = d.sy + 'px';
+      d.el.style.opacity = Math.max(0, d.life * 2).toFixed(2);
+      if (d.life <= 0) {
+        d.el.remove();
+        this._dmgNumbers.splice(i, 1);
+      }
+    }
+  }
+
+  _announceStreak(streak) {
+    const msgs = {
+      2: ['DOUBLE KILL!',    '#ffdd44'],
+      3: ['TRIPLE KILL!',    '#ff8822'],
+      4: ['QUAD KILL! 🔥',  '#ff4444'],
+      5: ['PENTA KILL!! 🔥🔥', '#ff2222'],
+    };
+    const entry = msgs[Math.min(streak, 5)] ?? [`${streak}x KILLING SPREE! 💀`, '#ff0000'];
+    this.hud.notifyStreak(entry[0], entry[1]);
+    audio.streak(streak);
   }
 }

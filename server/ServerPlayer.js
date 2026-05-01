@@ -1,6 +1,3 @@
-const MAP_HALF = 200;
-const GROUND_Y = 0;
-
 export class ServerPlayer {
   constructor(id, username, color, spawnPosition, spawnIndex = 0) {
     this.id         = id;
@@ -9,6 +6,8 @@ export class ServerPlayer {
     this.color      = color;
     this.hp         = 100;
     this.kills      = 0;
+    this.deaths     = 0;
+    this.assists    = 0;
     this.alive      = true;
     this.spawnIndex = spawnIndex;
     this.position   = { x: spawnPosition.x, y: spawnPosition.y, z: spawnPosition.z };
@@ -18,24 +17,29 @@ export class ServerPlayer {
     // ── NEW: charging state ──
     this.charging     = false;
     this.chargeAmount = 0; // 0..1 (normalized)
+    this.isSliding    = false;
+
+    // 3-second spawn protection — immune to all damage on first spawn
+    this._spawnProtectedUntil = Date.now() + 3000;
   }
 
   /** Accept position/quaternion/velocity relayed from the client each frame. */
-  applyClientState(input) {
+  applyClientState(input, mapHalf = 200, groundY = 0) {
     if (input.position) {
       const p = input.position;
       // Clamp to valid arena bounds
       this.position = {
-        x: Math.max(-MAP_HALF, Math.min(MAP_HALF, p.x ?? this.position.x)),
-        y: Math.max(GROUND_Y - 1,  p.y ?? this.position.y),
-        z: Math.max(-MAP_HALF, Math.min(MAP_HALF, p.z ?? this.position.z)),
+        x: Math.max(-mapHalf, Math.min(mapHalf, p.x ?? this.position.x)),
+        y: Math.max(groundY,  p.y ?? this.position.y),
+        z: Math.max(-mapHalf, Math.min(mapHalf, p.z ?? this.position.z)),
       };
     }
     if (input.quaternion) this.quaternion = input.quaternion;
     if (input.velocity)   this.velocity   = input.velocity;
 
-    // ── NEW: charge state relay ──
-    if (typeof input.charging === 'boolean') this.charging = input.charging;
+    // ── charge + slide state relay ──
+    if (typeof input.charging   === 'boolean') this.charging   = input.charging;
+    if (typeof input.isSliding  === 'boolean') this.isSliding  = input.isSliding;
     if (typeof input.chargeAmount === 'number') {
       this.chargeAmount = Math.max(0, Math.min(1, input.chargeAmount));
     }
@@ -49,19 +53,22 @@ export class ServerPlayer {
    */
   takeDamage(amount, attackerId, method) {
     if (!this.alive) return { died: false };
+    if (Date.now() < this._spawnProtectedUntil) return { died: false };
     this.hp = Math.max(0, this.hp - amount);
     if (this.hp <= 0) return { died: true, attackerId, method };
     return { died: false };
   }
 
-  die()  { this.alive = false; }
+  die()  { this.alive = false; this.deaths++; }
 
   respawn(position) {
-    this.hp           = 100;
-    this.alive        = true;
-    this.position     = { ...position };
-    this.charging     = false;
-    this.chargeAmount = 0;
+    this.hp                   = 100;
+    this.alive                = true;
+    this.position             = { ...position };
+    this.charging             = false;
+    this.chargeAmount         = 0;
+    this.isSliding            = false;
+    this._spawnProtectedUntil = Date.now() + 3000;
   }
 
   getState() {
@@ -74,9 +81,12 @@ export class ServerPlayer {
       velocity:     this.velocity,
       hp:           this.hp,
       kills:        this.kills,
+      deaths:       this.deaths,
+      assists:      this.assists,
       alive:        this.alive,
-      charging:     this.charging,      // NEW
-      chargeAmount: this.chargeAmount,  // NEW
+      charging:     this.charging,
+      chargeAmount: this.chargeAmount,
+      isSliding:    this.isSliding,
     };
   }
 }

@@ -13,33 +13,55 @@
     #lobby {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #050d1a 0%, #0a1f3a 100%);
+      background: linear-gradient(160deg, #030810 0%, #071428 50%, #040c20 100%);
       z-index: 100;
     }
+    #snow-canvas {
+      position: fixed; inset: 0; pointer-events: none; z-index: 101;
+    }
     #lobby-card {
-      background: rgba(10,30,60,0.92);
-      border: 1px solid #1a4a8a;
-      border-radius: 16px;
+      position: relative; z-index: 102;
+      background: rgba(6,20,50,0.88);
+      border: 1px solid rgba(74,240,255,0.22);
+      border-radius: 18px;
       padding: 40px 48px;
       text-align: center;
       max-width: 460px;
       width: 92%;
+      box-shadow: 0 0 60px rgba(74,240,255,0.06), 0 20px 60px rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
     }
 
     /* ── Phase 1 ─────────────────────────────────────────────────────────── */
+    #lobby-penguin {
+      font-size: 3.8rem;
+      display: inline-block;
+      animation: pengBounce 1.6s ease-in-out infinite;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    @keyframes pengBounce {
+      0%,100% { transform: translateY(0) rotate(-5deg); }
+      50%      { transform: translateY(-14px) rotate(5deg); }
+    }
     #lobby-phase1 h1 {
       font-size: 3rem;
       letter-spacing: 0.15em;
-      color: #a8e6f0;
       text-transform: uppercase;
-      text-shadow: 0 0 20px #4af0ff88;
       margin-bottom: 8px;
+      background: linear-gradient(90deg, #a8e6f0 0%, #4af0ff 40%, #ffffff 55%, #4af0ff 70%, #a8e6f0 100%);
+      background-size: 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 5s ease-in-out infinite;
     }
+    @keyframes shimmer { 0%,100% { background-position: 0% } 50% { background-position: 100% } }
     #lobby-phase1 .subtitle {
-      color: #5a8aaa;
-      font-size: 0.95rem;
-      margin-bottom: 32px;
-      letter-spacing: 0.05em;
+      color: #4a7a9a;
+      font-size: 0.92rem;
+      margin-bottom: 28px;
+      letter-spacing: 0.06em;
     }
     #username-input {
       width: 100%;
@@ -185,6 +207,76 @@
       box-shadow: 0 0 12px #4af0ff33;
     }
 
+    /* Duration buttons — same visual style as map buttons */
+    .duration-btns {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .duration-btn {
+      flex: 1;
+      padding: 9px 6px;
+      font-size: 0.83rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #2a5a8a;
+      border-radius: 8px;
+      color: #7aaecc;
+      cursor: pointer;
+      transition: all 0.18s;
+      text-transform: uppercase;
+    }
+    .duration-btn:hover {
+      background: rgba(74,240,255,0.08);
+      border-color: #4af0ff66;
+      color: #a8e6f0;
+    }
+    .duration-btn.active {
+      background: linear-gradient(135deg, #0a4a7a, #0d5e9a);
+      border-color: #4af0ff;
+      color: #4af0ff;
+      box-shadow: 0 0 12px #4af0ff33;
+    }
+
+    /* Bot count row */
+    .bot-row {
+      margin-bottom: 20px;
+    }
+    .bot-count-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .bot-count-header label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      color: #4a7a9a;
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .bot-count-header input[type="checkbox"] {
+      accent-color: #4af0ff;
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+    #bot-count-label {
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #a8e6f0;
+    }
+    #bot-count-slider {
+      width: 100%;
+      accent-color: #4af0ff;
+      cursor: pointer;
+    }
+
     /* Player list */
     .player-list-header {
       display: flex;
@@ -301,8 +393,17 @@
       display: none;
     }
   </style>
+  
+  
+  <!-- Vibe Jam 2026 — REQUIRED -->
+  <script async src="https://vibej.am/2026/widget.js"></script>
+
+
 </head>
 <body>
+
+  <!-- Snowfall background -->
+  <canvas id="snow-canvas"></canvas>
 
   <!-- Lobby -->
   <div id="lobby">
@@ -310,8 +411,9 @@
 
       <!-- Phase 1: username entry -->
       <div id="lobby-phase1">
+        <div id="lobby-penguin">🐧</div>
         <h1>Waddle War</h1>
-        <p class="subtitle">Penguin battle royale on the ice planet</p>
+        <p class="subtitle">Penguin · throw snow · survive</p>
         <input id="username-input" type="text" maxlength="16"
                placeholder="Enter username..." autocomplete="off" />
         <div id="username-error"></div>
@@ -334,8 +436,27 @@
 
         <p class="map-section-label">Map</p>
         <div class="map-btns">
-          <button class="map-btn" data-map="ice_planet">Ice Planet</button>
-          <button class="map-btn" data-map="glacier_canyon">Glacier Canyon</button>
+          <button class="map-btn" data-map="ice_planet">🧊 Ice Planet</button>
+          <button class="map-btn" data-map="glacier_canyon">Glacier Canyon <span style="font-size:0.62rem;background:#ff8c00;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle;font-weight:700;letter-spacing:0.08em">BETA</span></button>
+        </div>
+
+        <p class="map-section-label">Match Duration</p>
+        <div class="duration-btns">
+          <button class="duration-btn" data-duration="5">5 min</button>
+          <button class="duration-btn active" data-duration="10">10 min</button>
+          <button class="duration-btn" data-duration="15">15 min</button>
+          <button class="duration-btn" data-duration="20">20 min</button>
+        </div>
+
+        <div class="bot-row">
+          <div class="bot-count-header">
+            <label>
+              <input type="checkbox" id="bots-enabled" checked />
+              Bots
+            </label>
+            <span id="bot-count-label">15 bots</span>
+          </div>
+          <input type="range" id="bot-count-slider" min="0" max="15" value="15" step="1" />
         </div>
 
         <div class="player-list-header">
@@ -360,6 +481,62 @@
   <script type="module" src="/main.js"></script>
 
   <script>
+    // ── Lobby snowfall animation ───────────────────────────────────────────
+    (function () {
+      const canvas = document.getElementById('snow-canvas');
+      const ctx    = canvas.getContext('2d');
+
+      function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const flakes = Array.from({ length: 90 }, () => ({
+        x:       Math.random() * window.innerWidth,
+        y:       Math.random() * window.innerHeight,
+        r:       0.8 + Math.random() * 2.8,
+        speed:   0.4 + Math.random() * 1.2,
+        drift:   (Math.random() - 0.5) * 0.25,
+        opacity: 0.15 + Math.random() * 0.55,
+        wobble:  Math.random() * Math.PI * 2,
+        wobbleSpeed: 0.4 + Math.random() * 0.6,
+      }));
+
+      let last = 0;
+      function tick(ts) {
+        const dt = Math.min((ts - last) / 1000, 0.05);
+        last = ts;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Subtle aurora glow bands at top
+        const grd = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.35);
+        grd.addColorStop(0,   'rgba(20,120,180,0.05)');
+        grd.addColorStop(0.5, 'rgba(60,200,255,0.03)');
+        grd.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (const f of flakes) {
+          f.wobble += f.wobbleSpeed * dt;
+          f.x += f.drift + Math.sin(f.wobble) * 0.3;
+          f.y += f.speed;
+          if (f.y > canvas.height + 10) {
+            f.y = -10;
+            f.x = Math.random() * canvas.width;
+          }
+          if (f.x < -10) f.x = canvas.width + 10;
+          if (f.x > canvas.width + 10) f.x = -10;
+
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(190,230,255,${f.opacity})`;
+          ctx.fill();
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })();
+
     // Click-to-copy room code
     document.getElementById('room-code').addEventListener('click', function() {
       const code = this.textContent;

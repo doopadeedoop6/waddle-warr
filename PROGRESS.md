@@ -1,6 +1,6 @@
 # Waddle Wars — Build Progress
 
-Last updated: 2026-04-25 (Bug pass — lobby auto-start, map buttons, duplicate mesh, solo fallback)
+Last updated: 2026-05-01 (Phase 19 — Bot polish, game-over flow, menu, How to Play, death drops)
 
 ---
 
@@ -8,6 +8,7 @@ Last updated: 2026-04-25 (Bug pass — lobby auto-start, map buttons, duplicate 
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
+| 19 | Bot Polish + UX Pass | ✅ Done | Bot boundary fix, death drops, game-over flow, menu button, How to Play |
 | 18 | Lobby Bug Pass | ✅ Done | 4 lobby bugs fixed: manual start, map buttons, duplicate mesh, solo fallback |
 | 17 | Bug Pass + 16-player Map | ✅ Done | 9 bugs fixed; Glacier Canyon rebuilt for 16 players (400×400) |
 | 1 | Setup | ✅ Done | Vite, index.html, main.js, server skeleton |
@@ -443,3 +444,78 @@ Previous map was 160×160 — too small for 16 players. Rebuilt from scratch.
 
 #### Known gaps introduced / carried forward
 - ~~Server physics for `glacier_canyon_v2` used a completely different old layout — players fell through everything~~ **Fixed 2026-04-24**: `glacier_canyon_v2.config.js` now uses identical obstacles/spawns to `glacier_canyon.config.js`
+
+---
+
+### ✅ Phase 19 — Bot Polish + UX Pass (2026-05-01)
+
+Eight fixes and features across bots, respawn, ammo, and UI.
+
+#### Bot fixes
+
+| # | Fix | File(s) | Detail |
+|---|-----|---------|--------|
+| 1 | Bots walked off Ice Planet platform | `GameRoom.js` | `_tickBots()` was passing `mapHalf=180` (void boundary) to `bot.think()`. Now derives `botBounds = min(mapHalf, maxSpawnPointRadius + 12)` ≈ 62 for Ice Planet. Bots clamp, bounce, and nudge back within the actual playable platform. |
+| 2 | Bots spawned at y=−28.5 (void) | `GameRoom.js` | Used `groundY + 1.5` where `groundY=-30` is the void safety net. Fixed to use `spawnPoints[0][1] = 1`. |
+| 3 | Bot spawn radius too large (117 units) | `GameRoom.js` | Changed to `min(mapHalf*0.3, 45)` ≈ 45 — inside the 60-unit platform. Same formula used for respawn positions. |
+| 4 | Natural bot animations | `BotPlayer.js`, `RemotePlayer.js` | Added quaternion-based yaw via `lerpAngle()`, strafe oscillation, charge wind-up, sliding pose on melee attack. RemotePlayer rewritten: foot lift/swing, flipper sway, roll, bob; server quat × animQuat composition. |
+| 5 | Bot charge + throw | `BotPlayer.js`, `GameRoom.js` | New `charge` state machine: bot pauses 0.55s, `chargeAmount` ramps 0→1, then fires via `_botThrowQueue`. Lead prediction: `aimPos = target.pos + vel * tof * 0.6`. |
+
+#### Player / weapon fixes
+
+| # | Fix | File(s) | Detail |
+|---|-----|---------|--------|
+| 6 | Slide flickered up/down | `Player.js` | `isSliding` required `_grounded` every frame — burst impulse briefly made player airborne → flicker. Latched: slide stays on while C held, drops only when C released. |
+| 7 | Ammo lost on respawn | `Weapon.js`, `Game.js` | Added `Weapon.reset()` (restores 20 mag + 80 reserve, clears reload/charge state). Called in both respawn paths. |
+| 8 | Respawn timer mismatch | `GameRoom.js` | Server used 3000 ms; HUD showed 5s. Changed server timeout to 5000 ms. |
+
+#### New feature — Death Drops
+
+- On every kill, a glowing **gold orb** spawns at the victim's last position
+- Walking over it gives **+20 ammo** (client-side immediately) and **+10 HP** (server-authoritative via `collectDrop` socket event)
+- Drop fades out over 20 seconds if uncollected
+- Replaced the static Snow Cache system (`PickupSystem.js` removed from Game.js)
+- **New files:** `client/src/DeathDropSystem.js`
+- **Server:** `GameRoom.handleDropCollected(socket)` adds 10 HP (capped at 100)
+- **Network:** `Network.sendDropCollected()` emits `collectDrop`
+- **Server index.js:** wires `collectDrop` → `handleDropCollected`
+
+#### New feature — Game Over → Lobby
+
+- Final scoreboard now shows a **"🔄 Play Again"** button with `pointer-events: auto`
+- Clicking it calls `location.reload()` → returns to lobby
+- Auto-reloads after **25 seconds** if player is AFK
+- Server resets back to `WAITING` after 15 s (unchanged)
+
+#### New feature — Menu Button + How to Play
+
+- Persistent **"☰"** button (top-left, below player count) — always visible during gameplay
+- **ESC key** toggles the menu overlay
+- Clicking the darkened backdrop closes the overlay
+- Menu contains:
+  - **Resume Game** button
+  - **Controls list**: WASD, Mouse, LMB, Hold LMB, F, C, Shift, Space, R, Tab, ESC
+  - **Tips**: Snow Caches → ammo, slide melee, charged shots, kill-to-win
+- All interactive elements explicitly set `pointer-events: auto` (overrides HUD default `none`)
+
+#### Kill notifications
+
+- Kill notification (`hud.notify`) was broadcasting to all clients
+- Fixed: wrapped in `id === this.network.playerId` so only the victim sees their own death message
+
+#### Files changed
+
+| File | Change type |
+|------|-------------|
+| `server/GameRoom.js` | Bot bounds formula, `handleDropCollected()` |
+| `server/index.js` | Wires `collectDrop` socket event |
+| `server/BotPlayer.js` | State machine rewrite (charge, strafe, smooth yaw, personality) |
+| `server/ServerPlayer.js` | `isSliding` field added |
+| `client/src/Game.js` | DeathDropSystem, ESC handler, game-over auto-reload, spawn-drop on kill |
+| `client/src/HUD.js` | Menu button + overlay, How to Play, Play Again button, CSS |
+| `client/src/Network.js` | `sendDropCollected()` |
+| `client/src/Player.js` | Slide latch fix, burst impulse |
+| `client/src/Weapon.js` | `reset()`, `addAmmo()` |
+| `client/src/RemotePlayer.js` | Full animation rewrite |
+| `client/src/DeathDropSystem.js` | **New** — death drop pickups |
+| `shared/maps/ice_planet.config.js` | 16 spawn points (was 12) |

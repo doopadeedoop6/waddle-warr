@@ -1,30 +1,37 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { buildGlacierCanyon, SPAWN_POINTS, COLLISION_BODIES } from './GlacierCanyon.js';
+import { buildGlacierCanyon } from './GlacierCanyon.js';
+import { BaseMap } from './BaseMap.js';
 
-export class GlacierCanyonMap {
-  constructor(_config) {
-    this.groundY       = 0;
-    this.mapHalf       = 200;
-    this.gravity       = new THREE.Vector3(0, -28, 0);
-    this.surfaceNormal = new THREE.Vector3(0, 1, 0);
-    this.spawnPoints   = SPAWN_POINTS.map(p => new THREE.Vector3(p.x, p.y, p.z));
+export class GlacierCanyonMap extends BaseMap {
+  constructor(config) {
+    super(config);
   }
 
   build(scene, physicsWorld) {
-    buildGlacierCanyon(scene);
-    this.minimapObstacles = COLLISION_BODIES.map(cb => ({
-      type:     cb.type,
-      position: { x: cb.position[0], y: cb.position[1], z: cb.position[2] },
-      size:     { x: cb.size[0],     y: cb.size[1],     z: cb.size[2] },
-      rotation: cb.rotation,
+    // 1. โหลดโมเดล 3D และจัดเก็บไว้ในตัวแปรเพื่อนำไปลบทิ้งทีหลัง
+    this._visualGroup = buildGlacierCanyon(scene);
+    
+    // สำคัญ: บังคับให้ BaseMap ช่วยติดตาม (Track) วัตถุนี้ เพื่อลบทิ้งในตอน Dispose
+    if (this._visualGroup && typeof this._track === 'function') {
+      this._track(this._visualGroup);
+    }
+
+    // 2. จำลอง Minimap จากไฟล์ Config ได้เลย ไม่ต้องง้อ COLLISION_BODIES
+    this.minimapObstacles = this.obstacles.map(obs => ({
+      type:     obs.type,
+      position: { x: obs.pos[0], y: obs.pos[1], z: obs.pos[2] },
+      size:     { x: obs.size[0], y: obs.size[1], z: obs.size[2] },
+      rotation: obs.rotation,
     }));
-    scene.fog = new THREE.Fog(0xc8e8ff, 180, 520);
+    
+    scene.fog = new THREE.Fog(this.visuals.fogColor, this.visuals.fogNear, this.visuals.fogFar);
+    
     this._obstacleBodies = [];
     this._groundBody = null;
 
     if (physicsWorld) {
-      // Ground plane — stops players from falling below y=0
+      // 3. สร้างพื้นโลก
       const groundBody = new CANNON.Body({ mass: 0 });
       groundBody.addShape(new CANNON.Plane());
       groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
@@ -32,12 +39,17 @@ export class GlacierCanyonMap {
       physicsWorld.addBody(groundBody);
       this._groundBody = groundBody;
 
-      for (const cb of COLLISION_BODIES) {
-        if (cb.type !== 'box') continue;
-        const shape = new CANNON.Box(new CANNON.Vec3(cb.size[0] / 2, cb.size[1] / 2, cb.size[2] / 2));
+      // 4. สร้างกล่องฟิสิกส์จาก this.obstacles (Single Source of Truth)
+      for (const obs of this.obstacles) {
+        if (obs.type !== 'box') continue;
+        const shape = new CANNON.Box(new CANNON.Vec3(obs.size[0] / 2, obs.size[1] / 2, obs.size[2] / 2));
         const body  = new CANNON.Body({ mass: 0, shape });
-        body.position.set(cb.position[0], cb.position[1], cb.position[2]);
-        if (cb.rotation) body.quaternion.setFromEuler(cb.rotation[0], cb.rotation[1], cb.rotation[2]);
+        body.position.set(obs.pos[0], obs.pos[1], obs.pos[2]);
+        
+        if (obs.rotation) {
+          body.quaternion.setFromEuler(obs.rotation[0], obs.rotation[1], obs.rotation[2]);
+        }
+        
         physicsWorld.addBody(body);
         this._obstacleBodies.push(body);
       }
@@ -46,7 +58,8 @@ export class GlacierCanyonMap {
 
   update(_delta) {}
 
-  dispose(_scene, physicsWorld) {
+  dispose(scene, physicsWorld) {
+    // 1. ล้างกล่องฟิสิกส์เฉพาะของแมปนี้ทิ้งให้หมด
     if (physicsWorld) {
       if (this._groundBody) {
         physicsWorld.removeBody(this._groundBody);
@@ -59,5 +72,8 @@ export class GlacierCanyonMap {
         this._obstacleBodies = [];
       }
     }
+    
+    // 2. ให้ BaseMap จัดการเก็บกวาดโมเดล 3D และข้อมูลอื่นๆ ที่เหลือ (ป้องกัน Memory Leak)
+    super.dispose(scene, physicsWorld);
   }
 }

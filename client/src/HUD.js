@@ -76,11 +76,49 @@ export default class HUD {
       /* top-left: player count */
       #hud-count { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 4px; font-size: 13px; color: rgba(255,255,255,0.8); }
 
-      /* top-center: zone timer */
-      #hud-zone { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,30,0.5); padding: 6px 16px; border-radius: 4px; font-size: 13px; color: #aaddff; text-align: center; display: none; }
+      /* top-center: game timer */
+      #hud-timer { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(0,0,30,0.65); border: 1px solid rgba(100,200,255,0.2); padding: 6px 20px; border-radius: 6px; text-align: center; display: none; min-width: 120px; }
+      #hud-timer.visible { display: block; }
+      #hud-timer-value { font-size: 22px; font-weight: 700; color: #fff; font-family: 'Courier New', monospace; letter-spacing: 0.06em; }
+      #hud-timer-label { font-size: 10px; color: rgba(170,220,255,0.6); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 1px; }
+      #hud-timer.urgent #hud-timer-value { color: #ff4444; animation: timerPulse 0.5s ease-in-out infinite alternate; }
+      @keyframes timerPulse { from { opacity: 1; } to { opacity: 0.4; } }
+
+      /* top-center: zone timer (below game timer) */
+      #hud-zone { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); background: rgba(0,0,30,0.5); padding: 6px 16px; border-radius: 4px; font-size: 13px; color: #aaddff; text-align: center; display: none; }
       #hud-zone.visible { display: block; }
       #hud-zone.urgent { animation: zonePulse 0.5s ease-in-out infinite alternate; }
       @keyframes zonePulse { from { color: #aaddff; } to { color: #fff; } }
+
+      /* K/D/A Tab scoreboard overlay */
+      #hud-scoreboard { position: fixed; inset: 0; background: rgba(0,5,20,0.82); display: none; align-items: flex-start; justify-content: center; padding-top: 80px; z-index: 200; pointer-events: none; }
+      #hud-scoreboard.visible { display: flex; }
+      #hud-scoreboard-inner { background: rgba(5,15,40,0.95); border: 1px solid rgba(100,180,255,0.25); border-radius: 10px; padding: 20px 28px; min-width: 520px; max-width: 700px; width: 90%; }
+      #hud-scoreboard-title { font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: rgba(160,210,255,0.7); text-transform: uppercase; text-align: center; margin-bottom: 14px; }
+      .sb-row { display: grid; grid-template-columns: 28px 1fr 52px 52px 52px 64px; align-items: center; gap: 4px; padding: 5px 4px; border-radius: 4px; }
+      .sb-row.header { font-size: 10px; color: rgba(150,190,230,0.55); letter-spacing: 0.12em; text-transform: uppercase; border-bottom: 1px solid rgba(100,180,255,0.12); padding-bottom: 8px; margin-bottom: 4px; }
+      .sb-row.me { background: rgba(100,180,255,0.1); }
+      .sb-row:not(.header):hover { background: rgba(255,255,255,0.03); }
+      .sb-rank { font-size: 12px; color: rgba(200,220,255,0.45); text-align: center; }
+      .sb-rank.gold   { color: #ffd700; font-weight: 700; }
+      .sb-rank.silver { color: #c0c0c0; font-weight: 600; }
+      .sb-rank.bronze { color: #cd7f32; font-weight: 600; }
+      .sb-name { display: flex; align-items: center; gap: 7px; font-size: 13px; color: #d0e8ff; overflow: hidden; }
+      .sb-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+      .sb-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sb-stat { font-size: 14px; font-weight: 600; text-align: center; font-family: 'Courier New', monospace; }
+      .sb-k   { color: #88ddff; }
+      .sb-d   { color: #ff8888; }
+      .sb-a   { color: #88ffbb; }
+      .sb-kd  { color: rgba(200,220,255,0.55); font-size: 12px; }
+      .sb-col-header { text-align: center; }
+
+      /* Final scoreboard (game over) */
+      #hud-final-scoreboard { position: fixed; inset: 0; background: rgba(0,5,20,0.88); display: none; align-items: center; justify-content: center; z-index: 300; pointer-events: none; }
+      #hud-final-scoreboard.visible { display: flex; }
+      #hud-final-inner { background: rgba(5,15,40,0.97); border: 1px solid rgba(255,215,0,0.3); border-radius: 12px; padding: 28px 36px; min-width: 540px; max-width: 720px; width: 92%; }
+      #hud-final-title { font-size: 24px; font-weight: 700; letter-spacing: 0.1em; color: #ffd700; text-align: center; margin-bottom: 6px; text-shadow: 0 0 20px rgba(255,215,0,0.4); }
+      #hud-final-subtitle { font-size: 12px; color: rgba(200,180,100,0.6); letter-spacing: 0.14em; text-align: center; text-transform: uppercase; margin-bottom: 20px; }
 
       /* center: notification */
       #hud-notify { position: absolute; top: 42%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; font-weight: 700; color: #fff; text-shadow: 0 0 20px rgba(100,180,255,0.8); letter-spacing: 0.05em; text-align: center; opacity: 0; transition: opacity 0.15s; }
@@ -96,6 +134,107 @@ export default class HUD {
       /* minimap */
       #hud-minimap { position: absolute; bottom: 28px; right: 24px; width: 120px; height: 120px; }
       #hud-minimap canvas { width: 100%; height: 100%; border-radius: 50%; }
+
+      /* kill streak banner */
+      #hud-streak {
+        position: absolute; top: 34%; left: 50%;
+        transform: translate(-50%, -50%) scale(0.6);
+        font-size: 40px; font-weight: 900; letter-spacing: 0.08em;
+        text-align: center; white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.12s ease, transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
+        text-shadow: 0 0 24px currentColor, 0 3px 10px rgba(0,0,0,0.9);
+      }
+      #hud-streak.pop { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      #hud-streak.fade { opacity: 0; transform: translate(-50%,-50%) scale(0.85); transition: opacity 0.4s ease, transform 0.4s ease; }
+
+      /* respawn countdown */
+      #hud-respawn {
+        position: absolute; inset: 0; display: none;
+        flex-direction: column; align-items: center; justify-content: center;
+        gap: 6px; background: rgba(0,0,10,0.42);
+      }
+      #hud-respawn.visible { display: flex; }
+      #hud-respawn-label { font-size: 13px; color: rgba(255,255,255,0.5); letter-spacing: 0.22em; text-transform: uppercase; }
+      #hud-respawn-count {
+        font-size: 96px; font-weight: 900; color: #ff4444; line-height: 1;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 0 50px rgba(255,68,68,0.55);
+        animation: respawnPulse 1s ease-in-out infinite;
+      }
+      @keyframes respawnPulse { 0%,100% { transform: scale(1); opacity:1; } 50% { transform: scale(1.07); opacity:0.75; } }
+
+      /* Menu button — always visible, top-left below player count */
+      #hud-menu-btn {
+        position: absolute; top: 58px; left: 20px;
+        width: 34px; height: 34px;
+        background: rgba(0,0,30,0.65); border: 1px solid rgba(100,200,255,0.2);
+        border-radius: 6px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px; color: rgba(255,255,255,0.75);
+        pointer-events: auto;
+        transition: background 0.15s, color 0.15s;
+        outline: none;
+      }
+      #hud-menu-btn:hover { background: rgba(30,60,120,0.85); color: #fff; border-color: rgba(100,200,255,0.4); }
+
+      /* Menu / pause overlay */
+      #hud-menu-overlay {
+        position: fixed; inset: 0; background: rgba(0,5,20,0.88);
+        display: none; align-items: center; justify-content: center;
+        z-index: 500; pointer-events: none;
+      }
+      #hud-menu-overlay.visible { display: flex; pointer-events: auto; }
+      #hud-menu-inner {
+        background: rgba(5,15,40,0.97); border: 1px solid rgba(100,180,255,0.25);
+        border-radius: 12px; padding: 28px 36px;
+        min-width: 460px; max-width: 620px; width: 90%;
+        max-height: 82vh; overflow-y: auto;
+        pointer-events: auto;
+      }
+      #hud-menu-title {
+        font-size: 18px; font-weight: 700; letter-spacing: 0.12em;
+        color: #aaddff; text-align: center; margin-bottom: 18px;
+        text-transform: uppercase;
+      }
+      .menu-action-btn {
+        display: block; width: 100%; padding: 10px 14px; margin-bottom: 10px;
+        background: rgba(100,180,255,0.1); border: 1px solid rgba(100,180,255,0.2);
+        border-radius: 6px; color: #fff; font-size: 14px; font-weight: 600;
+        letter-spacing: 0.08em; cursor: pointer; text-align: center;
+        pointer-events: auto; font-family: 'Segoe UI', system-ui, sans-serif;
+        transition: background 0.15s;
+      }
+      .menu-action-btn:hover { background: rgba(100,180,255,0.25); }
+
+      /* How to Play section */
+      .htp-section { margin-top: 16px; }
+      .htp-title {
+        font-size: 10px; color: rgba(160,210,255,0.55); letter-spacing: 0.16em;
+        text-transform: uppercase; margin-bottom: 8px;
+        border-bottom: 1px solid rgba(100,180,255,0.12); padding-bottom: 6px;
+      }
+      .htp-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 5px 4px; font-size: 13px; border-radius: 3px;
+      }
+      .htp-row:nth-child(even) { background: rgba(255,255,255,0.03); }
+      .htp-key {
+        color: #88ccff; font-family: 'Courier New', monospace; font-weight: 700;
+        white-space: nowrap; min-width: 130px;
+      }
+      .htp-desc { color: rgba(200,220,255,0.8); text-align: right; }
+
+      /* Play Again button in final scoreboard */
+      #hud-play-again-btn {
+        display: block; width: 100%; margin-top: 22px; padding: 13px;
+        background: rgba(80,180,80,0.18); border: 1px solid rgba(100,200,80,0.35);
+        border-radius: 8px; color: #88ff88; font-size: 16px; font-weight: 700;
+        letter-spacing: 0.1em; cursor: pointer; text-align: center;
+        pointer-events: auto; font-family: 'Segoe UI', system-ui, sans-serif;
+        transition: background 0.15s;
+      }
+      #hud-play-again-btn:hover { background: rgba(80,180,80,0.38); }
     `;
     const style = document.createElement('style');
     style.textContent = css;
@@ -146,11 +285,70 @@ export default class HUD {
 
       <div id="hud-killfeed"></div>
       <div id="hud-count">— alive 🐧</div>
+
+      <div id="hud-timer">
+        <div id="hud-timer-value">10:00</div>
+        <div id="hud-timer-label">FFA</div>
+      </div>
+
       <div id="hud-zone">❄ Blizzard closes in <span id="hud-zone-time">--</span>s</div>
       <div id="hud-notify"></div>
       <div id="hud-state-banner"></div>
       <div id="hud-vignette"></div>
+      <div id="hud-streak"></div>
+      <div id="hud-respawn">
+        <div id="hud-respawn-label">Respawning in</div>
+        <div id="hud-respawn-count">5</div>
+      </div>
       <div id="hud-minimap"><canvas id="hud-minimap-canvas" width="120" height="120"></canvas></div>
+
+      <div id="hud-scoreboard">
+        <div id="hud-scoreboard-inner">
+          <div id="hud-scoreboard-title">Scoreboard — FFA</div>
+          <div id="hud-scoreboard-rows"></div>
+        </div>
+      </div>
+
+      <div id="hud-final-scoreboard">
+        <div id="hud-final-inner">
+          <div id="hud-final-title">GAME OVER</div>
+          <div id="hud-final-subtitle">Final Standings</div>
+          <div id="hud-final-rows"></div>
+          <button id="hud-play-again-btn">🔄 Play Again</button>
+        </div>
+      </div>
+
+      <button id="hud-menu-btn" title="Menu / How to Play [ESC]">☰</button>
+
+      <div id="hud-menu-overlay">
+        <div id="hud-menu-inner">
+          <div id="hud-menu-title">☰ Waddle Wars</div>
+          <button class="menu-action-btn" id="hud-resume-btn">▶  Resume Game  [ESC]</button>
+
+          <div class="htp-section">
+            <div class="htp-title">Controls</div>
+            <div class="htp-row"><span class="htp-key">W A S D</span><span class="htp-desc">Move</span></div>
+            <div class="htp-row"><span class="htp-key">Mouse</span><span class="htp-desc">Aim / Look around</span></div>
+            <div class="htp-row"><span class="htp-key">Left Click</span><span class="htp-desc">Throw snowball</span></div>
+            <div class="htp-row"><span class="htp-key">Hold Left Click</span><span class="htp-desc">Charge a power throw</span></div>
+            <div class="htp-row"><span class="htp-key">F</span><span class="htp-desc">Melee slap</span></div>
+            <div class="htp-row"><span class="htp-key">C</span><span class="htp-desc">Slide</span></div>
+            <div class="htp-row"><span class="htp-key">Shift</span><span class="htp-desc">Sprint / boost</span></div>
+            <div class="htp-row"><span class="htp-key">Space</span><span class="htp-desc">Jump</span></div>
+            <div class="htp-row"><span class="htp-key">R</span><span class="htp-desc">Reload</span></div>
+            <div class="htp-row"><span class="htp-key">Tab</span><span class="htp-desc">Show scoreboard</span></div>
+            <div class="htp-row"><span class="htp-key">ESC</span><span class="htp-desc">This menu</span></div>
+          </div>
+
+          <div class="htp-section">
+            <div class="htp-title">Tips</div>
+            <div class="htp-row"><span class="htp-desc" style="width:100%">❄ Pick up glowing Snow Caches for +20 ammo</span></div>
+            <div class="htp-row"><span class="htp-desc" style="width:100%">🐧 Slide into enemies for a sneaky melee hit</span></div>
+            <div class="htp-row"><span class="htp-desc" style="width:100%">⚡ Charge shots deal triple damage</span></div>
+            <div class="htp-row"><span class="htp-desc" style="width:100%">🏆 Most kills when the timer runs out wins</span></div>
+          </div>
+        </div>
+      </div>
     `;
     document.body.appendChild(root);
   }
@@ -162,8 +360,21 @@ export default class HUD {
       'hud-stamina','hud-stamina-label','hud-stamina-fill',
       'hud-ammo','hud-ammo-mag','hud-ammo-reserve','hud-ammo-status',
       'hud-killfeed','hud-count','hud-zone','hud-zone-time',
+      'hud-timer','hud-timer-value','hud-timer-label',
+      'hud-scoreboard','hud-scoreboard-rows','hud-scoreboard-title',
+      'hud-final-scoreboard','hud-final-title','hud-final-rows',
       'hud-notify','hud-state-banner','hud-vignette',
+      'hud-streak','hud-respawn','hud-respawn-count',
+      'hud-menu-overlay', 'hud-menu-btn', 'hud-resume-btn', 'hud-play-again-btn',
     ].forEach(id => { this._el[id] = document.getElementById(id); });
+
+    // Menu button wires
+    this._el['hud-menu-btn'].addEventListener('click', () => this.showMenuOverlay());
+    this._el['hud-resume-btn'].addEventListener('click', () => this.hideMenuOverlay());
+    this._el['hud-menu-overlay'].addEventListener('click', (e) => {
+      if (e.target === this._el['hud-menu-overlay']) this.hideMenuOverlay();
+    });
+    this._el['hud-play-again-btn'].addEventListener('click', () => location.reload());
 
     this._minimapCanvas  = document.getElementById('hud-minimap-canvas');
     this._minimapCtx     = this._minimapCanvas.getContext('2d');
@@ -475,6 +686,132 @@ export default class HUD {
     this._el['hud-count'].textContent = `${alive} / ${total} alive 🐧`;
   }
 
+  // ── Game timer ────────────────────────────────────────────────────────────
+  setGameTimer(seconds, totalSeconds) {
+    const el = this._el['hud-timer'];
+    if (seconds == null || seconds <= 0) {
+      el.classList.remove('visible', 'urgent');
+      return;
+    }
+    el.classList.add('visible');
+    el.classList.toggle('urgent', seconds <= 30);
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    this._el['hud-timer-value'].textContent =
+      String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+
+    const totalMins = totalSeconds ? Math.round(totalSeconds / 60) : null;
+    this._el['hud-timer-label'].textContent = totalMins ? `FFA  ${totalMins} min` : 'FFA';
+  }
+
+  // ── Live scoreboard (Tab hold) ────────────────────────────────────────────
+  showScoreboard(players, myId) {
+    const el = this._el['hud-scoreboard'];
+    el.classList.add('visible');
+    this._el['hud-scoreboard-title'].textContent = 'Scoreboard — FFA  [TAB]';
+    this._el['hud-scoreboard-rows'].innerHTML = this._buildScoreboardHTML(players, myId);
+  }
+
+  hideScoreboard() {
+    this._el['hud-scoreboard'].classList.remove('visible');
+  }
+
+  // ── Final scoreboard (game over) ──────────────────────────────────────────
+  showFinalScoreboard(standings, myId, winnerName) {
+    const el = this._el['hud-final-scoreboard'];
+    el.classList.add('visible');
+    this._el['hud-final-title'].textContent = winnerName ? `🏆 ${winnerName} WINS!` : 'GAME OVER';
+    this._el['hud-final-rows'].innerHTML = this._buildScoreboardHTML(standings, myId);
+  }
+
+  hideFinalScoreboard() {
+    this._el['hud-final-scoreboard'].classList.remove('visible');
+  }
+
+  _buildScoreboardHTML(players, myId) {
+    const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+    const rankIcons = ['🥇', '🥈', '🥉'];
+    const header = `
+      <div class="sb-row header">
+        <div></div>
+        <div>Player</div>
+        <div class="sb-col-header">K</div>
+        <div class="sb-col-header">D</div>
+        <div class="sb-col-header">A</div>
+        <div class="sb-col-header">K/D</div>
+      </div>`;
+
+    const rows = sorted.map((p, i) => {
+      const isMe = p.id === myId;
+      const kd = p.deaths > 0 ? (p.kills / p.deaths).toFixed(2) : p.kills.toFixed(1);
+      const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+      const rankLabel = rankIcons[i] ?? `${i + 1}`;
+      return `
+        <div class="sb-row${isMe ? ' me' : ''}">
+          <div class="sb-rank ${rankClass}">${rankLabel}</div>
+          <div class="sb-name">
+            <span class="sb-dot" style="background:${p.color ?? '#888'}"></span>
+            <span class="sb-name-text">${_escHtml(p.username ?? 'Penguin')}${isMe ? ' ★' : ''}</span>
+          </div>
+          <div class="sb-stat sb-k">${p.kills ?? 0}</div>
+          <div class="sb-stat sb-d">${p.deaths ?? 0}</div>
+          <div class="sb-stat sb-a">${p.assists ?? 0}</div>
+          <div class="sb-stat sb-kd">${kd}</div>
+        </div>`;
+    }).join('');
+
+    return header + rows;
+  }
+
+  // ── Kill streak banner ────────────────────────────────────────────────────
+  notifyStreak(text, color) {
+    if (this._streakTimer)     clearTimeout(this._streakTimer);
+    if (this._streakFadeTimer) clearTimeout(this._streakFadeTimer);
+    const el = this._el['hud-streak'];
+    el.style.color = color;
+    el.textContent = text;
+    el.classList.remove('pop', 'fade');
+    void el.offsetWidth; // force reflow → restart transition
+    el.classList.add('pop');
+    this._streakFadeTimer = setTimeout(() => {
+      el.classList.remove('pop');
+      el.classList.add('fade');
+    }, 1900);
+    this._streakTimer = setTimeout(() => {
+      el.classList.remove('pop', 'fade');
+    }, 2500);
+  }
+
+  // ── Respawn countdown ─────────────────────────────────────────────────────
+  showRespawnCountdown(seconds) {
+    clearInterval(this._respawnInterval);
+    let remaining = Math.ceil(seconds);
+    this._el['hud-respawn-count'].textContent = remaining;
+    this._el['hud-respawn'].classList.add('visible');
+    this._respawnInterval = setInterval(() => {
+      remaining--;
+      this._el['hud-respawn-count'].textContent = Math.max(0, remaining);
+      if (remaining <= 0) this.hideRespawnCountdown();
+    }, 1000);
+  }
+
+  hideRespawnCountdown() {
+    clearInterval(this._respawnInterval);
+    this._el['hud-respawn'].classList.remove('visible');
+  }
+
+  // ── Menu / How to Play overlay ────────────────────────────────────────────
+  showMenuOverlay() { this._el['hud-menu-overlay'].classList.add('visible'); }
+  hideMenuOverlay() { this._el['hud-menu-overlay'].classList.remove('visible'); }
+  isMenuVisible()   { return this._el['hud-menu-overlay'].classList.contains('visible'); }
+
   show() { document.getElementById('hud-root').style.display = ''; }
   hide() { document.getElementById('hud-root').style.display = 'none'; }
+}
+
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

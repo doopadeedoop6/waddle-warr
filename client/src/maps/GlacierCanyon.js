@@ -3,13 +3,13 @@ import * as THREE from 'three';
 // ═══════════════════════════════════════════════════════════════════════════
 //  GLACIER CANYON  —  16-player map  (400 × 400 units)
 //
-//  Y levels:
+//  Y levels (map scaled ×0.5 via S constant; design coords in source × S = actual):
 //    0   = canyon floor
-//    6   = corner spawn platforms
-//    10  = mid platforms (N/S/E/W)
-//    14  = center W-E bridge deck
-//    12  = center N-S catwalk deck
-//    28+ = crystal tower
+//    3   = corner spawn platforms
+//    5   = mid platforms (N/S/E/W)
+//    6   = center N-S catwalk deck
+//    7   = center W-E bridge deck
+//    14+ = crystal tower
 //
 //  Zones:
 //    SW/SE/NW/NE Spawns  —  (±108, ±108), 4 players each
@@ -32,6 +32,8 @@ const MAT = {
   snow:       new THREE.MeshStandardMaterial({ color: 0xeef6ff, roughness: 1.00, metalness: 0.00 }),
   ramp:       new THREE.MeshStandardMaterial({ color: 0x6a9ab8, roughness: 0.80, metalness: 0.05 }),
 };
+
+const S = 1.0; // uniform map scale — change this one value to resize the whole map
 
 function box(w, h, d, mat, x = 0, y = 0, z = 0) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -71,36 +73,36 @@ export const COLLISION_BODIES = [];
 function addBox(px, py, pz, sx, sy, sz, rotX = 0, rotZ = 0) {
   COLLISION_BODIES.push({
     type:     'box',
-    position: [ px, py + sy / 2, pz ], 
-    size:     [ sx, sy, sz ],
+    position: [ px * S, py * S + (sy * S) / 2, pz * S ],
+    size:     [ sx * S, sy * S, sz * S ],
     rotation: rotX !== 0 || rotZ !== 0 ? [rotX, 0, rotZ] : null,
   });
 }
 
 // ── Spawn points: 4 per corner = 16 total ─────────────────────────────────
 export const SPAWN_POINTS = [
-  // SW  (x−, z+)  — y=7.0: platform top at y=6, sphere radius 0.9 → min center = 6.9
-  { x: -100, y: 7.0, z:  100 }, { x: -116, y: 7.0, z:  100 },
-  { x: -100, y: 7.0, z:  116 }, { x: -116, y: 7.0, z:  116 },
-  // SE  (x+, z+)
-  { x:  100, y: 7.0, z:  100 }, { x:  116, y: 7.0, z:  100 },
-  { x:  100, y: 7.0, z:  116 }, { x:  116, y: 7.0, z:  116 },
-  // NW  (x−, z−)
-  { x: -100, y: 7.0, z: -100 }, { x: -116, y: 7.0, z: -100 },
-  { x: -100, y: 7.0, z: -116 }, { x: -116, y: 7.0, z: -116 },
-  // NE  (x+, z−)
-  { x:  100, y: 7.0, z: -100 }, { x:  116, y: 7.0, z: -100 },
-  { x:  100, y: 7.0, z: -116 }, { x:  116, y: 7.0, z: -116 },
+  // SW  (cx=-108, cz=+108) — spawn circles at cx±8, cz±8; y = platform top (6) + sphere radius (0.85) ≈ 6.9
+  { x: -116, y: 6.9, z:  100 }, { x: -100, y: 6.9, z:  100 },
+  { x: -116, y: 6.9, z:  116 }, { x: -100, y: 6.9, z:  116 },
+  // SE  (cx=+108, cz=+108)
+  { x:  100, y: 6.9, z:  100 }, { x:  116, y: 6.9, z:  100 },
+  { x:  100, y: 6.9, z:  116 }, { x:  116, y: 6.9, z:  116 },
+  // NW  (cx=-108, cz=-108)
+  { x: -116, y: 6.9, z: -100 }, { x: -100, y: 6.9, z: -100 },
+  { x: -116, y: 6.9, z: -116 }, { x: -100, y: 6.9, z: -116 },
+  // NE  (cx=+108, cz=-108)
+  { x:  100, y: 6.9, z: -100 }, { x:  116, y: 6.9, z: -100 },
+  { x:  100, y: 6.9, z: -116 }, { x:  116, y: 6.9, z: -116 },
 ];
 
 export const AMMO_PICKUP_POSITIONS = [
-  { x: 0,    y: 15, z:   0  },  // center bridge
-  { x: 0,    y: 11, z: -85  }, { x: 0,    y: 11, z:  85  },  // N/S mid
-  { x: -85,  y: 11, z:   0  }, { x: 85,   y: 11, z:   0  },  // W/E mid
-  { x: -108, y: 7,  z: -108 }, { x:  108, y: 7,  z: -108 },  // NW/NE spawn
-  { x: -108, y: 7,  z:  108 }, { x:  108, y: 7,  z:  108 },  // SW/SE spawn
-  { x: -45,  y: 1,  z:   0  }, { x:  45,  y: 1,  z:   0  },  // inner mid E/W
-  { x: 0,    y: 1,  z: -45  }, { x:   0,  y: 1,  z:  45  },  // inner mid N/S
+  { x:    0, y: 7.5, z:     0 },  // center bridge
+  { x:    0, y: 5.5, z: -42.5 }, { x:    0, y: 5.5, z:  42.5 },  // N/S mid
+  { x: -42.5,y: 5.5, z:     0 }, { x: 42.5, y: 5.5, z:     0 },  // W/E mid
+  { x:  -54, y: 3.5, z:   -54 }, { x:   54, y: 3.5, z:   -54 },  // NW/NE spawn
+  { x:  -54, y: 3.5, z:    54 }, { x:   54, y: 3.5, z:    54 },  // SW/SE spawn
+  { x: -22.5,y: 0.5, z:     0 }, { x: 22.5, y: 0.5, z:     0 },  // inner mid E/W
+  { x:    0, y: 0.5, z: -22.5 }, { x:    0, y: 0.5, z:  22.5 },  // inner mid N/S
 ];
 
 // ── Main build function ────────────────────────────────────────────────────
@@ -159,8 +161,8 @@ export function buildGlacierCanyon(scene) {
     // Ramp toward center-Z (faces N/S toward mid)
     // cy=3.881 places the low end surface exactly at y=0 so players can walk onto the ramp
     const rzAngle = zs * Math.atan2(6, 22);
-    g.add(tiltedBox(40, 1.5, 24, MAT.ramp, cx, 3.881, cz - zs * 34, -rzAngle, 0));
-    addBox(cx, 3.131, cz - zs * 34, 40, 1.5, 24, -rzAngle, 0);
+    g.add(tiltedBox(40, 1.5, 24, MAT.ramp, cx, 3.881, cz - zs * 34, rzAngle, 0));
+    addBox(cx, 3.131, cz - zs * 34, 40, 1.5, 24, rzAngle, 0);
 
     // Ramp toward center-X (faces E/W toward mid)
     const rxAngle = xs * Math.atan2(6, 22);
@@ -207,14 +209,21 @@ export function buildGlacierCanyon(scene) {
       // cy=6.424, depth=34: low end surface sits at y=0; high end reaches platform top (~11.4)
       const zs   = pz > 0 ? 1 : -1;
       const angle = zs * Math.atan2(10, 28);
-      g.add(tiltedBox(36, 1.5, 34, MAT.ramp, px, 6.424, pz - zs * 36, -angle, 0));
-      addBox(px, 5.674, pz - zs * 36, 36, 1.5, 34, -angle, 0);
+      g.add(tiltedBox(36, 1.5, 34, MAT.ramp, px, 6.424, pz - zs * 36, angle, 0));
+      addBox(px, 5.674, pz - zs * 36, 36, 1.5, 34, angle, 0);
+      // Outer ramp — center-facing is inner, this one faces outward so corner-spawn players can climb
+      g.add(tiltedBox(36, 1.5, 34, MAT.ramp, px, 6.424, pz + zs * 36, angle, 0));
+      addBox(px, 5.674, pz + zs * 36, 36, 1.5, 34, angle, 0);
     } else {
       // E or W mid — ramp on center-facing side
       const xs   = px > 0 ? 1 : -1;
       const angle = xs * Math.atan2(10, 28);
       g.add(tiltedBox(34, 1.5, 36, MAT.ramp, px - xs * 36, 6.424, pz, 0, angle));
       addBox(px - xs * 36, 5.674, pz, 34, 1.5, 36, 0, angle);
+      // Outer ramp — mirror for the outward face
+      const outerAngle = -xs * Math.atan2(10, 28);
+      g.add(tiltedBox(34, 1.5, 36, MAT.ramp, px + xs * 36, 6.424, pz, 0, outerAngle));
+      addBox(px + xs * 36, 5.674, pz, 34, 1.5, 36, 0, outerAngle);
     }
 
     return g;
@@ -280,8 +289,8 @@ export function buildGlacierCanyon(scene) {
   [[-5,2],[5,-2],[3,5],[-3,-5],[-7,0],[7,0]].forEach(([sx, sz], i) => {
     root.add(cone(1.4 - i * 0.1, 12 - i, 6, MAT.crystal, sx, 17, sz));
   });
-  const glow = new THREE.PointLight(0x44aaff, 6, 100);
-  glow.position.set(0, 36, 0);
+  const glow = new THREE.PointLight(0x44aaff, 6, 50);
+  glow.position.set(0, 18, 0);
   root.add(glow);
 
   // ── 7. INNER CANYON CLIFFS  (diagonal chokepoints, one per quadrant) ─────
@@ -408,16 +417,16 @@ export function buildGlacierCanyon(scene) {
   // ── 12. LIGHTING ────────────────────────────────────────────────────────
   // Arctic sun
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.8);
-  sun.position.set(180, 240, 120);
+  sun.position.set(90, 120, 60);
   sun.castShadow = true;
   sun.shadow.mapSize.width  = 4096;
   sun.shadow.mapSize.height = 4096;
   sun.shadow.camera.near   = 1;
-  sun.shadow.camera.far    = 700;
-  sun.shadow.camera.left   = -220;
-  sun.shadow.camera.right  =  220;
-  sun.shadow.camera.top    =  220;
-  sun.shadow.camera.bottom = -220;
+  sun.shadow.camera.far    = 350;
+  sun.shadow.camera.left   = -110;
+  sun.shadow.camera.right  =  110;
+  sun.shadow.camera.top    =  110;
+  sun.shadow.camera.bottom = -110;
   sun.shadow.bias = -0.001;
   root.add(sun);
 
@@ -426,15 +435,15 @@ export function buildGlacierCanyon(scene) {
 
   // Zone accent lights
   [
-    [    0, 5,    0, 0x2266aa, 1.0,  70 ], // center
-    [ -158, 5,    0, 0x4488cc, 1.2,  80 ], // W flank
-    [  158, 5,    0, 0x4488cc, 1.2,  80 ], // E flank
-    [    0, 5, -158, 0x4488cc, 1.2,  80 ], // N flank
-    [    0, 5,  158, 0x4488cc, 1.2,  80 ], // S flank
-    [ -108, 10, -108, 0x8866cc, 1.5,  60 ], // NW spawn
-    [  108, 10, -108, 0x8866cc, 1.5,  60 ], // NE spawn
-    [ -108, 10,  108, 0x8866cc, 1.5,  60 ], // SW spawn
-    [  108, 10,  108, 0x8866cc, 1.5,  60 ], // SE spawn
+    [    0, 2.5,    0, 0x2266aa, 1.0,  35 ], // center
+    [  -79, 2.5,    0, 0x4488cc, 1.2,  40 ], // W flank
+    [   79, 2.5,    0, 0x4488cc, 1.2,  40 ], // E flank
+    [    0, 2.5,  -79, 0x4488cc, 1.2,  40 ], // N flank
+    [    0, 2.5,   79, 0x4488cc, 1.2,  40 ], // S flank
+    [  -54, 5,   -54, 0x8866cc, 1.5,  30 ], // NW spawn
+    [   54, 5,   -54, 0x8866cc, 1.5,  30 ], // NE spawn
+    [  -54, 5,    54, 0x8866cc, 1.5,  30 ], // SW spawn
+    [   54, 5,    54, 0x8866cc, 1.5,  30 ], // SE spawn
   ].forEach(([x, y, z, color, intensity, dist]) => {
     const l = new THREE.PointLight(color, intensity, dist);
     l.position.set(x, y, z);
@@ -443,19 +452,19 @@ export function buildGlacierCanyon(scene) {
 
   // ── 13. ZONE METADATA ───────────────────────────────────────────────────
   root.userData.zones = {
-    CENTER:      { position: new THREE.Vector3(  0, 15,    0), label: 'Center Bridge' },
-    NORTH_MID:   { position: new THREE.Vector3(  0, 11,  -85), label: 'North Mid'     },
-    SOUTH_MID:   { position: new THREE.Vector3(  0, 11,   85), label: 'South Mid'     },
-    WEST_MID:    { position: new THREE.Vector3(-85, 11,    0), label: 'West Mid'      },
-    EAST_MID:    { position: new THREE.Vector3( 85, 11,    0), label: 'East Mid'      },
-    NW_SPAWN:    { position: new THREE.Vector3(-108, 8, -108), label: 'NW Spawn'      },
-    NE_SPAWN:    { position: new THREE.Vector3( 108, 8, -108), label: 'NE Spawn'      },
-    SW_SPAWN:    { position: new THREE.Vector3(-108, 8,  108), label: 'SW Spawn'      },
-    SE_SPAWN:    { position: new THREE.Vector3( 108, 8,  108), label: 'SE Spawn'      },
-    WEST_FLANK:  { position: new THREE.Vector3(-158, 5,    0), label: 'West Flank'    },
-    EAST_FLANK:  { position: new THREE.Vector3( 158, 5,    0), label: 'East Flank'    },
-    NORTH_FLANK: { position: new THREE.Vector3(   0, 5, -158), label: 'North Flank'   },
-    SOUTH_FLANK: { position: new THREE.Vector3(   0, 5,  158), label: 'South Flank'   },
+    CENTER:      { position: new THREE.Vector3(   0,  7.5,    0), label: 'Center Bridge' },
+    NORTH_MID:   { position: new THREE.Vector3(   0,  5.5, -42.5), label: 'North Mid'   },
+    SOUTH_MID:   { position: new THREE.Vector3(   0,  5.5,  42.5), label: 'South Mid'   },
+    WEST_MID:    { position: new THREE.Vector3(-42.5, 5.5,    0), label: 'West Mid'     },
+    EAST_MID:    { position: new THREE.Vector3( 42.5, 5.5,    0), label: 'East Mid'     },
+    NW_SPAWN:    { position: new THREE.Vector3( -54,  4,   -54), label: 'NW Spawn'      },
+    NE_SPAWN:    { position: new THREE.Vector3(  54,  4,   -54), label: 'NE Spawn'      },
+    SW_SPAWN:    { position: new THREE.Vector3( -54,  4,    54), label: 'SW Spawn'      },
+    SE_SPAWN:    { position: new THREE.Vector3(  54,  4,    54), label: 'SE Spawn'      },
+    WEST_FLANK:  { position: new THREE.Vector3( -79,  2.5,   0), label: 'West Flank'   },
+    EAST_FLANK:  { position: new THREE.Vector3(  79,  2.5,   0), label: 'East Flank'   },
+    NORTH_FLANK: { position: new THREE.Vector3(   0,  2.5, -79), label: 'North Flank'  },
+    SOUTH_FLANK: { position: new THREE.Vector3(   0,  2.5,  79), label: 'South Flank'  },
   };
 
   scene.add(root);
@@ -468,11 +477,11 @@ export function buildGlacierCanyon(scene) {
 export const BLIZZARD_ZONE = {
   type: 'box',
   stages: [
-    { time:   0, halfX: 200, halfZ: 200 },  // full map
-    { time:  70, halfX: 140, halfZ: 140 },  // squeeze toward mid platforms
-    { time: 110, halfX:  90, halfZ:  90 },  // mid platform pressure
-    { time: 140, halfX:  50, halfZ:  50 },  // center zone only
-    { time: 160, halfX:  20, halfZ:  20 },  // bridge only
+    { time:   0, halfX: 100, halfZ: 100 },  // full map
+    { time:  70, halfX:  70, halfZ:  70 },  // squeeze toward mid platforms
+    { time: 110, halfX:  45, halfZ:  45 },  // mid platform pressure
+    { time: 140, halfX:  25, halfZ:  25 },  // center zone only
+    { time: 160, halfX:  10, halfZ:  10 },  // bridge only
     { time: 175, halfX:   0, halfZ:   0 },  // zone closed
   ],
   damagePerSecond: 5,

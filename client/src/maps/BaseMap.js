@@ -43,6 +43,29 @@ export class BaseMap {
     return obj;
   }
 
+  // Returns one THREE.Box3 per non-rotated box obstacle, built once and cached.
+  // Cylinders and rotated boxes (ramps) are excluded — Cannon-ES handles those
+  // correctly via tilted contact normals; an AABB approximation would fight it.
+  getCollisionBoxes() {
+    if (!this._collisionBoxes) {
+      // Rotated obstacles (ramps) are intentionally excluded: their AABB would be a wrong
+      // axis-aligned approximation that fights against Cannon-ES's correct tilted-surface
+      // contact normals. Cannon-ES + Player.js slope code handle ramps on their own.
+      this._collisionBoxes = this.obstacles
+        .filter(obs => obs.type === 'box' && !obs.rotation)
+        .map(obs => {
+          const halfW = obs.size[0] / 2;
+          const halfH = obs.size[1] / 2;
+          const halfD = obs.size[2] / 2;
+          return new THREE.Box3(
+            new THREE.Vector3(obs.pos[0] - halfW, obs.pos[1] - halfH, obs.pos[2] - halfD),
+            new THREE.Vector3(obs.pos[0] + halfW, obs.pos[1] + halfH, obs.pos[2] + halfD)
+          );
+        });
+    }
+    return this._collisionBoxes;
+  }
+
   _buildSkyAndLights(scene) {
     const v = this.visuals;
     scene.background = new THREE.Color(v.skyColor);

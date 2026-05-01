@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import * as THREE from 'three';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
 const BUFFER_MAX    = 3;
 const RENDER_LAG_MS = 100;
@@ -31,6 +31,9 @@ export default class Network {
     this._onGameStartedCb    = null;
     this._onRoomSnapshotCb   = null;
 
+    this._timeRemaining = 0;
+    this._gameDuration  = 600;
+
     // id → remote player object  (live; Weapon reads this array)
     this._remoteMap     = new Map();
     this._remotePlayers = [];
@@ -49,6 +52,11 @@ export default class Network {
 
       this._socket.on('connect', () => {
         console.log('[Network] connected, joining as', username);
+        this._socket.emit('join', { username });
+      });
+
+      this._socket.on('reconnect', (attempt) => {
+        console.warn(`[Network] reconnected after ${attempt} attempts — rejoining as ${username}`);
         this._socket.emit('join', { username });
       });
 
@@ -71,8 +79,9 @@ export default class Network {
         if (this._onMapChangedCb) this._onMapChangedCb(mapId);
       });
 
-      this._socket.on('gameStarted', () => {
-        if (this._onGameStartedCb) this._onGameStartedCb();
+      this._socket.on('gameStarted', (data) => {
+        if (data?.duration) this._gameDuration = data.duration;
+        if (this._onGameStartedCb) this._onGameStartedCb(data);
       });
 
       this._socket.on('roomSnapshot', (players) => {
@@ -85,9 +94,13 @@ export default class Network {
             position:     new THREE.Vector3(p.position.x, p.position.y, p.position.z),
             quaternion:   new THREE.Quaternion(),
             hp:           p.hp,
+            kills:        p.kills   ?? 0,
+            deaths:       p.deaths  ?? 0,
+            assists:      p.assists ?? 0,
             alive:        p.alive,
             charging:     false,
             chargeAmount: 0,
+            velocityY:    0,
             body:         null,
             _buffer:      [],
           });
@@ -142,6 +155,9 @@ export default class Network {
   _handleGameState(state) {
     if (!state.players) return;
 
+    this._timeRemaining = state.timeRemaining ?? 0;
+    this._gameDuration  = state.gameDuration  ?? 600;
+
     const now    = Date.now();
     const seenIds = new Set();
 
@@ -149,6 +165,13 @@ export default class Network {
       if (p.id === this._playerId) {
         // Store server position for reconciliation (applied in update())
         this._serverPos = new THREE.Vector3(p.position.x, p.position.y, p.position.z);
+        // Store local player stats so Game.js can read them
+        this._myStats = {
+          kills:   p.kills   ?? 0,
+          deaths:  p.deaths  ?? 0,
+          assists: p.assists ?? 0,
+          hp:      p.hp,
+        };
         continue;
       }
 
@@ -162,25 +185,30 @@ export default class Network {
           position:     new THREE.Vector3(),
           quaternion:   new THREE.Quaternion(),
           hp:           p.hp,
-          kills:        p.kills ?? 0,
+          kills:        p.kills   ?? 0,
+          deaths:       p.deaths  ?? 0,
+          assists:      p.assists ?? 0,
           alive:        p.alive,
-          // ── NEW: charge state ──
           charging:     false,
           chargeAmount: 0,
-          body:         null,  // no physics — mesh only
+          velocityY:    0,
+          body:         null,
           _buffer:      [],
         });
       }
 
-      const remote = this._remoteMap.get(p.id);
-      remote.hp    = p.hp;
-      remote.alive = p.alive;
-      remote.color = p.color;
+      const remote    = this._remoteMap.get(p.id);
+      remote.hp       = p.hp;
+      remote.alive    = p.alive;
+      remote.color    = p.color;
+      remote.kills    = p.kills   ?? 0;
+      remote.deaths   = p.deaths  ?? 0;
+      remote.assists  = p.assists ?? 0;
       if (p.username) remote.username = p.username;
 
-      // ── NEW: relay charge state every tick ──
       remote.charging     = !!p.charging;
       remote.chargeAmount = p.chargeAmount ?? 0;
+      remote.velocityY    = p.velocity?.y  ?? 0;
 
       // State buffer for interpolation
       remote._buffer.push({
@@ -299,22 +327,36 @@ export default class Network {
     this._socket.emit('spawnProjectile', data);
   }
 
+  sendDropCollected() {
+    if (!this._socket?.connected) return;
+    this._socket.emit('collectDrop');
+  }
+
   requestMapChange(mapId) {
     if (!this._socket?.connected) return;
     this._socket.emit('requestMapChange', { mapId });
   }
 
-  requestStartGame() {
+  requestStartGame(duration = 10, botCount = 15) {
     if (!this._socket?.connected) return;
-    this._socket.emit('startGame');
+    this._socket.emit('startGame', { duration, botCount });
+  }
+
+  requestSoloPlay(duration = 10, botCount = 15) {
+    if (!this._socket?.connected) return;
+    this._socket.emit('soloPlay', { duration, botCount });
   }
 
   // ─────────────────────────────────────── getters ──
-  get latency()       { return this._latency; }
-  get playerId()      { return this._playerId; }
-  get remotePlayers() { return this._remotePlayers; }
-  get currentMapId()  { return this._currentMapId; }
-  get joinData()      { return this._joinData; }
-  get lobbyPlayers()  { return this._lobbyPlayers; }
-  get roomCode()      { return this._joinData?.roomCode ?? null; }
+  get isConnected()    { return this._socket?.connected ?? false; }
+  get latency()        { return this._latency; }
+  get playerId()       { return this._playerId; }
+  get remotePlayers()  { return this._remotePlayers; }
+  get currentMapId()   { return this._currentMapId; }
+  get joinData()       { return this._joinData; }
+  get lobbyPlayers()   { return this._lobbyPlayers; }
+  get roomCode()       { return this._joinData?.roomCode ?? null; }
+  get timeRemaining()  { return this._timeRemaining; }
+  get gameDuration()   { return this._gameDuration; }
+  get myStats()        { return this._myStats ?? { kills: 0, deaths: 0, assists: 0, hp: 100 }; }
 }
